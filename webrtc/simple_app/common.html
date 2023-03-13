@@ -1,73 +1,95 @@
-<html> 
-<head> 
+<html>
+<head>
     <title>WebRTC Video Demo</title>
-    <link rel = "stylesheet" href = "node_modules/bootstrap/dist/css/bootstrap.min.css"/>
 </head>
 
 <style>
-    body { 
+    body {
         background: transparent;
-    } 
+    }
 
-    video { 
+    video {
         background: transparent;
-		//border: 1px solid gray;
+		border: 1px solid gray;
+
+        width: 40%;
+        height: same-as-width;
+
+        top: 15px;
+        margin-left: 30%;
     }
 
-    .call-page { 
-        display: block; 
-        margin: 0 auto; 
-        width: 50%; 
-        height: 250px; 
-    } 
-
-    #localVideo { 
-        width: 150px; 
-        height: 150px; 
-        top: 15px; 
-        right: 15px; 
+    hr {
+        margin-top: 20px;
+        height: 1px;
+        margin-bottom: 20px;
     }
 
-    #remoteVideo { 
-         width: 150px; 
-        height: 150px; 
-        top: 15px; 
-        right: 175px; 
+    .call-page {
+        display: block;
+        width: 50%;
+        height: 250px;
     }
+
+    /*
+    #localVideo {
+        width: 300px;
+        height: 300px;
+        top: 15px;
+        right: 15px;
+    }
+
+    #remoteVideo {
+        width: 300px;
+        height: 300px;
+        top: 15px;
+        right: 175px;
+    }
+    */
 </style>
 
 <body>
     <div id = "all">
-        <div id = "loginPage" class = "container text-center"> 
-            <div class = "row"> 
-                <div class = "col-md-4 col-md-offset-4">
-                    <h2>Please sign in</h2> 
-                    <label for = "usernameInput" class = "sr-only">Login</label> 
-                    <input type = "email" id = "usernameInput" class = "form-control formgroup" placeholder = "Login" required = "" autofocus = "" value="laptop"> 
-                    <button id = "loginBtn" class = "btn btn-lg btn-primary btnblock"> Sign in</button>
-                </div> 
-            </div> 
+        <div id = "loginPage">
+            <div>
+                <div>
+                    <h2>Please sign in</h2>
+                    <label for = "usernameInput">Login</label>
+                    <input type = "email" id = "usernameInput"  placeholder = "Login" required = "" autofocus = "" value="laptop">
+                    <button id = "loginBtn"> Sign in</button>
+                </div>
+            </div>
         </div>
 
-        <div id = "callPage" class = "call-page"> 
-            <video id = "localVideo" autoplay></video> 
-            <!--div class = "row text-center"--> 
-            <div> 
-                <!--div class = "col-md-12"--> 
-                <div> 
-                    <input id = "callToUsernameInput" type = "text" placeholder = "username to call" value="stb"/> 
-                    <button id = "callBtn" class = "btn-success btn">Call</button> 
-                    <button id = "hangUpBtn" class = "btn-danger btn">Hang Up</button> 
-                </div>    
-            </div> 
-        </div>
+        <div id = "callPage">
+            <div style="margin-left: 30%">
+                <label for = "callToUsernameInput">Enter Peer to be called</label>
+                <input id = "callToUsernameInput" type = "text" placeholder = "username to call" value="stb"/>
+                <button id = "callBtn">Call</button>
+                <button id = "hangUpBtn">Hang Up</button>
+            </div>
 
-        <div id = "recievePage" >
-            <video id = "remoteVideo" autoplay></video>
+            <hr>
+
+            <div>
+                <div style="text-align: center">
+                    <label for = "localVideo" style="vertical-align: center">Local Video</label>
+                </div>
+                <video id = "localVideo" autoplay></video>
+            </div>
+
+            <hr>
+
+            <div>
+                <div style="text-align: center">
+                    <label for = "remoteVideo" style="vertical-align: middle">Remote Video</label>
+                </div>
+                <video id = "remoteVideo" autoplay></video>
+            </div>
         </div>
     </div>
 
-    <script src = "thunderJS.js"></script> 
-    <script src = "video_client.js"></script> 
+    <script src = "http://192.168.2.108/webrtc_app/thunderJS.js"></script>
+    <script src = "http://192.168.2.108/webrtc_app/video_client.js"></script>
 </body>
-</html>          
+</html>
