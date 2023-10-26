@@ -12,6 +12,14 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(initApp, 0)
 })
 
+if (window.checkTestCaseAPI) {
+    checkTestCaseAPI();
+} else {
+    console.log("VIVEK-DBG: checkTestCaseAPI() is not found, running in Non-RDK browser");
+    function reportFail(status, msg) { console.log("VIVEK-DBG: " + ((msg === undefined) ? "Success" : msg)); }
+    function reportPass(status, msg) { console.log("VIVEK-DBG: " + ((msg === undefined) ? "Success" : msg)); }
+}
+
 function initApp() {
     ms = new MediaSource()
     ms.addEventListener('sourceopen', onSourceOpen)
@@ -38,10 +46,23 @@ function initApp() {
     })
 }
 
+var gTimerIds = []
+
+function clearTimer(id) {
+    clearTimeout(id)
+    gTimerIds = gTimerIds.filter((val) => { return val != id })
+}
+
+function clearAllTimers() {
+    gTimerIds.forEach(clearTimeout)
+    gTimerIds = []
+}
+
 function waitForTime(delay) {
     let wrapper = () => {
         return new Promise((resolve, reject) => {
-            setTimeout(() => { resolve(); }, delay);
+            let id = setTimeout(() => { clearTimer(id); resolve(); }, delay);
+            gTimerIds.push(id);
         });
     };
     return wrapper();
@@ -55,7 +76,7 @@ function waitForCondition(condition, duration, reason) {
 
         return new Promise((resolve, reject) => {
             var checkCondition = () => {
-                clearTimeout(id)
+                clearTimer(id)
                 if (predicate()) {
                     resolve();
                     return
@@ -65,6 +86,7 @@ function waitForCondition(condition, duration, reason) {
                     reject(reason === undefined ? "Timeout waiting for condition" : reason);
                 } else {
                     id = setTimeout(checkCondition, timeout);
+                    gTimerIds.push(id);
                     timeout = 0;
                 }
             }
@@ -81,7 +103,7 @@ function waitForEvent(element, event, duration, errormsg) {
         let timeout = duration
         return new Promise((resolve, reject) => {
             let onEvent = function () {
-                clearTimeout(id)
+                clearTimer(id)
                 element.removeEventListener(event, onEvent)
                 resolve();
             }
@@ -95,6 +117,7 @@ function waitForEvent(element, event, duration, errormsg) {
                     element.removeEventListener(event, onEvent)
                     reject(errormsg === undefined ? ("Timeout waiting for event " + event) : errormsg);
                 }, timeout);
+                gTimerIds.push(id);
             }
         });
     };

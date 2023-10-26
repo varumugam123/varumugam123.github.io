@@ -56,18 +56,23 @@
                 throw 'No Media Source API available'
             }
             
-            if (window.checkTestCaseAPI) {
-                checkTestCaseAPI();
-            } else {
-                console.log("VIVEK-DBG: checkTestCaseAPI() is not found, running in Non-RDK browser");
-            }
-
             var allFeedersEnded = false
             var feeders = { video: null, audio: null }
             var enableAudio = false
+            var sentTestStatus = false;
+            var testPassed = false;
 
             function cleanup() {
                 video.pause();
+                clearAllTimers();
+
+                if (!sentTestStatus) {
+                    sentTestStatus = true;
+                    if(testPassed)
+                        reportPass(true, "Test Passed")
+                    else
+                        reportFail(false, "Test Failed")
+                }
 
                 function abortSourceBuffer(feeders, video) {
                     feeder = video ? feeders.video : feeders.audio;
@@ -102,6 +107,7 @@
                                 return (video.currentTime >= 10);
                             }, ((10 - video.currentTime) * 1000) + 1000, "Video is not reached to end of the video");
                 }).then(() => {
+                    testPassed = true;
                     console.log("VIVEK-DBG: Test completed successfully");
                     cleanup();
                 }).catch((error) => {
