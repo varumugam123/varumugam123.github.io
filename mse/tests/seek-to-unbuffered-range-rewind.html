@@ -47,9 +47,11 @@
             </div>
         </div>
 
-        <script src="big_buck_bunny_720p_30fps.js"></script>
-        <script src="common.js"></script>
-        <script src="feeder.js"></script>
+        <script src="../lib/utils.js"></script>
+        <script src="../lib/mse.js"></script>
+        <script src="../lib/big_buck_bunny_720p_30fps.js"></script>
+        <script src="../lib/common.js"></script>
+        <script src="../lib/feeder.js"></script>
 
         <script type='text/javascript'>
             if (!window.MediaSource) {
@@ -74,15 +76,7 @@
                         reportFail(false, "Test Failed")
                 }
 
-                function abortSourceBuffer(feeders, video) {
-                    feeder = video ? feeders.video : feeders.audio;
-                    if(feeder !== undefined && feeder && feeder.sourceBuffer !== undefined && feeder.sourceBuffer)
-                        feeder.sourceBuffer.abort();
-                }
-
-                if (feeders !== undefined && feeders != null) {
-                    [true, false].forEach((value) => { abortSourceBuffer(feeders, value); });
-                }
+                forAllSourceBuffers((buffer) => { buffer.abort(); });
                 
                 ms = null
                 feeders = {video: null, audio: null}
@@ -90,10 +84,6 @@
                 video.remove()
             }
 
-            function checkForPlaying() {
-                return (video.currentTime > 0 && !video.paused && !video.ended && video.readyState > 2);
-            }
-            
             function onFeedEnded() {
                 for (let key in feeders)
                     if (feeders.hasOwnProperty(key) && feeders[key] && !(feeders[key].ended))

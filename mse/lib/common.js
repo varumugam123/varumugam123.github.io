@@ -8,10 +8,6 @@ var moderateTimeupdateLogging = checkProp(searchParams.get('moderateTimeupdateLo
 var ms = null
 var video = document.querySelector('video')
 
-document.addEventListener('DOMContentLoaded', function () {
-    setTimeout(initApp, 0)
-})
-
 if (window.checkTestCaseAPI) {
     checkTestCaseAPI();
 } else {
@@ -19,6 +15,10 @@ if (window.checkTestCaseAPI) {
     function reportFail(status, msg) { console.log("VIVEK-DBG: " + ((msg === undefined) ? "Success" : msg)); }
     function reportPass(status, msg) { console.log("VIVEK-DBG: " + ((msg === undefined) ? "Success" : msg)); }
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    setTimeout(initApp, 0)
+})
 
 function initApp() {
     ms = new MediaSource()
@@ -46,6 +46,12 @@ function initApp() {
     })
 }
 
+function checkForPlaying() {
+    return (video.currentTime > 0 && !video.paused && !video.ended && video.readyState > 2);
+}
+
+// Scheduling functions
+
 var gTimerIds = []
 
 function clearTimer(id) {
@@ -58,11 +64,24 @@ function clearAllTimers() {
     gTimerIds = []
 }
 
+function scheduleTask(t, delay) {
+    let wrapper = () => {
+        let id = -1;
+        let task = t;
+        id = setTimeout(() => {
+            clearTimer(id);
+            task();
+        }, delay);
+        gTimerIds.push(id);
+        return id;
+    }
+    return wrapper();
+}
+
 function waitForTime(delay) {
     let wrapper = () => {
         return new Promise((resolve, reject) => {
-            let id = setTimeout(() => { clearTimer(id); resolve(); }, delay);
-            gTimerIds.push(id);
+            scheduleTask(resolve, delay);
         });
     };
     return wrapper();
@@ -72,11 +91,9 @@ function waitForCondition(condition, duration, reason) {
     let wrapper = () => {
         let timeout = duration
         let predicate = condition
-        let id = -1
 
         return new Promise((resolve, reject) => {
             var checkCondition = () => {
-                clearTimer(id)
                 if (predicate()) {
                     resolve();
                     return
@@ -85,8 +102,7 @@ function waitForCondition(condition, duration, reason) {
                 if (timeout <= 0) {
                     reject(reason === undefined ? "Timeout waiting for condition" : reason);
                 } else {
-                    id = setTimeout(checkCondition, timeout);
-                    gTimerIds.push(id);
+                    scheduleTask(checkCondition, timeout);
                     timeout = 0;
                 }
             }
@@ -113,11 +129,10 @@ function waitForEvent(element, event, duration, errormsg) {
             if (timeout <= 0) {
                 reject(errormsg === undefined ? ("Timeout waiting for event " + event) : errormsg);
             } else {
-                id = setTimeout(() => {
+                id = scheduleTask(() => {
                     element.removeEventListener(event, onEvent)
                     reject(errormsg === undefined ? ("Timeout waiting for event " + event) : errormsg);
                 }, timeout);
-                gTimerIds.push(id);
             }
         });
     };

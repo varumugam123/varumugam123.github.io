@@ -47,9 +47,11 @@
             </div>
         </div>
 
-        <script src="big_buck_bunny_720p_30fps.js"></script>
-        <script src="common.js"></script>
-        <script src="feeder.js"></script>
+        <script src="../lib/utils.js"></script>
+        <script src="../lib/mse.js"></script>
+        <script src="../lib/big_buck_bunny_720p_30fps.js"></script>
+        <script src="../lib/common.js"></script>
+        <script src="../lib/feeder.js"></script>
 
         <script type='text/javascript'>
             if (!window.MediaSource) {
@@ -78,15 +80,7 @@
                         reportFail(false, "Test Failed")
                 }
 
-                function abortSourceBuffer(feeders, video) {
-                    feeder = video ? feeders.video : feeders.audio;
-                    if(feeder !== undefined && feeder && feeder.sourceBuffer !== undefined && feeder.sourceBuffer)
-                        feeder.sourceBuffer.abort();
-                }
-
-                if (feeders !== undefined && feeders != null) {
-                    [true, false].forEach((value) => { abortSourceBuffer(feeders, value); });
-                }
+                forAllSourceBuffers((buffer) => { buffer.abort(); });
                 
                 ms = null
                 feeders = {video: null, audio: null}
@@ -135,20 +129,31 @@
                 // console.log("VIVEK-DBG: checkBufferPercentageAndwaitForCondition: " + isVideo + " : " + video.readyState.toString() + ", " + bufferPercentage);
 
                 if (video.readyState >= 1) {
-                    if (feeders.video)
-                        feeders.video.appendComplete = undefined;
-                    if (feeders.audio)
-                        feeders.audio.appendComplete = undefined;
+                    var sourceBuffersThatHasData = 0;
+                    if(isVideo) {
+                        if (feeders.video)
+                            feeders.video.appendComplete = undefined;
+                    } else {
+                        if (feeders.audio)
+                            feeders.audio.appendComplete = undefined;
+                    }
 
-                    waitForEvent(video, 'canplay', 5000).then(() => {
-                        console.log("VIVEK-DBG: Data loaded");
-                        return waitForEvent(video, 'playing', 10000)
-                    }).then(() => {
-                        console.log("VIVEK-DBG: Player started playback");
-                    }).catch((error) => {
-                        console.log("VIVEK-DBG: " + error + ", currentTime=" + video.currentTime);
-                        cleanup()
-                    })
+                    forAllFeeders((feeder, isVideo) => {
+                        if (feeder.appendComplete === undefined)
+                            sourceBuffersThatHasData++;
+                    });
+
+                    if(sourceBuffersThatHasData == 2) {
+                        waitForEvent(video, 'canplay', 5000).then(() => {
+                            console.log("VIVEK-DBG: Data loaded");
+                            return waitForEvent(video, 'playing', 10000)
+                        }).then(() => {
+                            console.log("VIVEK-DBG: Player started playback");
+                        }).catch((error) => {
+                            console.log("VIVEK-DBG: " + error + ", currentTime=" + video.currentTime);
+                            cleanup()
+                        })
+                    }
                 }
             }
 
@@ -163,10 +168,10 @@
                 }
             }
 
-            var currentTimeLoggerId = -1
-            var currentTimeLogger = function (annotation) {
-                clearTimeout(currentTimeLoggerId);
+            var currentTimeValidatorId = -1
+            var currentTimeValidator = function (annotation) {
                 let currentTime = video.currentTime;
+                clearTimer(currentTimeValidatorId);
                 console.log("VIVEK-DBG: video.currentTime=" + currentTime + annotation);
                 if ((currentTime < positionBeforeBufferRemoval) && (positionBeforeBufferRemoval - currentTime) > 0.066) {
                     let errorMsg = `video.currentTime(${currentTime}) is less than the position when audio data was replaced (${positionBeforeBufferRemoval})`;
@@ -174,7 +179,7 @@
                     cleanup();
                     return;
                 }
-                currentTimeLoggerId = setTimeout(() => { currentTimeLogger(" @ 50 millisecond") }, 50);
+                currentTimeValidatorId = scheduleTask(() => { currentTimeValidator(" @ 50 millisecond") }, 50);
             }
 
             function simulateAudioLaunguageSwitch() {
@@ -183,8 +188,8 @@
                 triggerSimulation = false;
 
                 waitForTime(0).then(() => {
-                    video.currentTime = 13;
                     console.log("VIVEK-DBG: Seeking to 13");
+                    video.currentTime = 13;
                     return waitForEvent(video, 'seeked', 1000, "Seeked to 13, but seeked event not received")
                 }).then(() => {
                     if (video.currentTime < 13) {
@@ -198,7 +203,7 @@
                     return waitForTime(3000);
                 }).then(() =>{
                     video.pause();
-                    currentTimeLogger(" @ After pausing");
+                    currentTimeValidator(" @ After pausing");
                     positionBeforeBufferRemoval = video.currentTime;
 
                     let audioFeeder = feeders.audio
@@ -213,7 +218,7 @@
                     console.log('VIVEK-DBG: Audio data removed')
                     return promise;
                 }).then(() => {
-                    currentTimeLogger(" @ Audio buffer removal completion");
+                    currentTimeValidator(" @ Audio buffer removal completion");
                     
                     let audioFeeder = feeders.audio
                     if (!audioFeeder) {
@@ -226,15 +231,15 @@
                     feeders.audio = new Feeder(audioSourceBuffer, urlsThroughNumber(audioUrls[0], bufferIndexFromTime(positionBeforeBufferRemoval - 0.010), 5), onFeedEnded, checkBufferPercentageAndwaitForCondition, false);
                     return promise;
                 }).then(() => {
-                    currentTimeLogger(" @ Audio buffer replaced");
+                    currentTimeValidator(" @ Audio buffer replaced");
                     let promise = waitForEvent(video, 'seeked', 2500, "Seeked to " + positionBeforeBufferRemoval + ", but seeked event not received");
                     video.currentTime = positionBeforeBufferRemoval;
                     return promise;
                 }).then(() => {
-                    currentTimeLogger(" @ Seek to " + positionBeforeBufferRemoval + " completion");
+                    currentTimeValidator(" @ Seek to " + positionBeforeBufferRemoval + " completion");
                     video.play();
-                    clearTimeout(currentTimeLoggerId)
-                    currentTimeLoggerId = -1
+                    clearTimeout(currentTimeValidatorId)
+                    currentTimeValidatorId = -1
                 }).catch((error) => {
                     console.log("VIVEK-DBG: Failure in simulation, " + error);
                     cleanup()

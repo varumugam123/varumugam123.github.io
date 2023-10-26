@@ -47,9 +47,11 @@
             </div>
         </div>
 
-        <script src="big_buck_bunny_720p_30fps.js"></script>
-        <script src="common.js"></script>
-        <script src="feeder.js"></script>
+        <script src="../lib/utils.js"></script>
+        <script src="../lib/mse.js"></script>
+        <script src="../lib/big_buck_bunny_720p_30fps.js"></script>
+        <script src="../lib/common.js"></script>
+        <script src="../lib/feeder.js"></script>
 
         <script type='text/javascript'>
             if (!window.MediaSource) {
@@ -90,24 +92,12 @@
                         reportFail(false, "Test Failed")
                 }
 
-                function abortSourceBuffer(feeders, video) {
-                    feeder = video ? feeders.video : feeders.audio;
-                    if(feeder !== undefined && feeder && feeder.sourceBuffer !== undefined && feeder.sourceBuffer)
-                        feeder.sourceBuffer.abort();
-                }
-
-                if (feeders !== undefined && feeders != null) {
-                    [true, false].forEach((value) => { abortSourceBuffer(feeders, value); });
-                }
+                forAllSourceBuffers((buffer) => { buffer.abort(); });
                 
                 ms = null
                 feeders = {video: null, audio: null}
                 video.src = ''
                 video.remove()
-            }
-
-            function checkForPlaying() {
-                return (video.currentTime > 0 && !video.paused && !video.ended && video.readyState > 2);
             }
 
             function onFeedEnded() {
@@ -169,10 +159,11 @@
                     }
 
                     if(removeDataOnReenqueue) {
-                        waitForEvent(video, 'canplay', 5000).then(() => {
-                            console.log("VIVEK-DBG: Data loaded");
-                            return waitForEvent(video, 'playing', 5000, "Enough data is fed, but playing event not received");
-                        }).then(() => {
+                        // waitForEvent(video, 'canplay', 5000).then(() => {
+                        //     console.log("VIVEK-DBG: Data loaded");
+                        //     return waitForEvent(video, 'playing', 5000, "Enough data is fed, but playing event not received");
+                        // }).then(() => {
+                        waitForEvent(video, 'playing', 10000, "Enough data is fed, but playing event not received").then(() => {
                             console.log("VIVEK-DBG: Player started playback");
                             checkTimeAfterReplacement();
                         }).catch((error) => {
@@ -199,6 +190,7 @@
                     if (feeder.scheduledReenqueueAt !== undefined && feeder.scheduledReenqueueAt != -1 && video.currentTime < feeder.scheduledReenqueueAt) {
                         let delta = (feeder.scheduledReenqueueAt >= video.currentTime) ? (feeder.scheduledReenqueueAt - video.currentTime) * 1000 : 0;
                         let timeOut = (delta > 100) ? delta : 50;
+                        console.log("Scheduling task to reenqueue in " + timeOut + " ms, for " + (isVideo ? "Video" : "Audio") + " @ " + video.currentTime);
                         setTimeout(() => { finishOrRenenqueue(isVideo, urls, feeder.reenqueueAt); }, timeOut);
                         return;
                     }
@@ -214,13 +206,13 @@
                     }
 
                     if (shouldRemoveFragment) {
-                        console.log("VIVEK-DBG: Removing buffers @ " + video.currentTime);
-                        sourceBuffer.remove(0, 100);
-                        console.log("VIVEK-DBG: Removed buffers {0,20}");
                         sourceBuffer.onupdateend = () => {
                             sourceBuffer.onupdateend = undefined;
                             attachNewFeeder();
                         };
+                        console.log("VIVEK-DBG: Removing " + (isVideo ? "Video" : "Audio") + " buffers @ " + video.currentTime);
+                        sourceBuffer.remove(0, 100);
+                        console.log("VIVEK-DBG: Removed " + (isVideo ? "Video" : "Audio") + " buffers {0,20}");                        
                     } else {
                         attachNewFeeder();
                     }
