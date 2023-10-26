@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset='UTF-8' />
+        <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate' />
+        <meta http-equiv='Pragma' content='no-cache' />
+        <meta http-equiv='Expires' content='0' />
+        <title>MSE Test</title>
+        
+        <script src="../lib/utils.js"></script>
+        <script src="../lib/mse.js"></script>
+        
+        <style>
+         video {
+             width: 100%;
+             height: 100%;
+         }
+         body {
+             margin:0;
+             padding:0;
+             background-color:transparent;
+             overflow: hidden;
+         }
+         #stats {
+             position: absolute;
+             left: 10px;
+             top: 10px;
+             background-color: grey;
+             color: white;
+             font-size: xx-large;
+         }
+         #errors {
+             position: absolute;
+             left: 10px;
+             top: 250px;
+             background-color: red;
+             font-size: xx-large;
+         }
+        </style>
+    </head>
+
+    <body>
+        <div>
+            <video id='videoPlayer' controls autoplay muted=false></video>
+            <div>
+                <span id='stats'/>
+            </div>
+            <div>
+                <span id='errors'/>
+            </div>
+        </div>
+
+        <script src="big_buck_bunny_720p_30fps.js"></script>
+        <script src="common.js"></script>
+        <script src="feeder.js"></script>
+
+        <script type='text/javascript'>
+            if (!window.MediaSource) {
+                throw 'No Media Source API available'
+            }
+            
+            if (window.checkTestCaseAPI) {
+                checkTestCaseAPI();
+            } else {
+                console.log("VIVEK-DBG: checkTestCaseAPI() is not found, running in Non-RDK browser");
+            }
+
+            var allFeedersEnded = false
+            var feeders = { video: null, audio: null }
+            
+            var reenqueueVideoAt = getParamValue(searchParams, 'reenqueueVideoAt')
+            var reenqueueAudioAt = getParamValue(searchParams, 'reenqueueAudioAt')
+            var reenqueueVideo = checkProp(searchParams.get('reenqueueVideo')) || (reenqueueVideoAt != -1)
+            var reenqueueAudio = checkProp(searchParams.get('reenqueueAudio')) || (reenqueueAudioAt != -1)
+            var removeDataOnReenqueue = checkProp(searchParams.get('removeDataOnReenqueue'))
+            var enableAudio = checkProp(searchParams.get('audio')) || reenqueueAudio
+
+            if(reenqueueVideoAt != -1 && reenqueueAudioAt == -1)
+                reenqueueAudioAt = reenqueueVideoAt;
+            else if(reenqueueAudioAt != -1 && reenqueueVideoAt == -1)
+                reenqueueVideoAt = reenqueueAudioAt;
+            else if(reenqueueAudioAt == -1 && reenqueueVideoAt == -1) {
+                reenqueueVideoAt = 2.5;
+                reenqueueAudioAt = 2.5;
+            }
+
+            function cleanup() {
+                video.pause();
+
+                function abortSourceBuffer(feeders, video) {
+                    feeder = video ? feeders.video : feeders.audio;
+                    if(feeder !== undefined && feeder && feeder.sourceBuffer !== undefined && feeder.sourceBuffer)
+                        feeder.sourceBuffer.abort();
+                }
+
+                if (feeders !== undefined && feeders != null) {
+                    [true, false].forEach((value) => { abortSourceBuffer(feeders, value); });
+                }
+                
+                ms = null
+                feeders = {video: null, audio: null}
+                video.src = ''
+                video.remove()
+            }
+
+            function checkForPlaying() {
+                return (video.currentTime > 0 && !video.paused && !video.ended && video.readyState > 2);
+            }
+
+            function onFeedEnded() {
+                for (let key in feeders)
+                    if (feeders.hasOwnProperty(key) && feeders[key] && !(feeders[key].ended))
+                        return
+                allFeedersEnded = true
+                console.log("VIVEK-DBG: All feeders ended");
+
+                if(window.scheduledMonitorForEnded === undefined) {
+                    window.scheduledMonitorForEnded = true;
+
+                    waitForCondition(function () {
+                            return (video.currentTime >= (video.duration - 1));
+                        }, ((video.duration - video.currentTime) * 1000) + 1000)
+                    .then(() => {
+                        console.log("VIVEK-DBG: Test completed successfully");
+                        cleanup();
+                    }).catch(() => {
+                        console.log("VIVEK-DBG: Test failed");
+                        cleanup();
+                    })
+                }
+            }
+
+            function checkBufferPercentageAndwaitForCondition(isVideo, bufferPercentage) {
+                // console.log("VIVEK-DBG: checkBufferPercentageAndwaitForCondition: " + isVideo + " : " + video.readyState.toString() + ", " + bufferPercentage);
+
+                if (video.readyState >= 1) {
+                    if (feeders.video)
+                        feeders.video.appendComplete = undefined;
+                    if (feeders.audio)
+                        feeders.audio.appendComplete = undefined;
+
+                    let checkTimeAfterReplacement = function () {
+                        waitForEvent(video, 'timeupdate', 1000).then(() => {
+                            console.log("VIVEK-DBG: Got timeupdate event");
+                            video.timeCheckCounter = 5;
+                            video.ontimeupdate = () => {
+                                if(video.timeCheckCounter <= 0) {
+                                    video.ontimeupdate = null
+                                    return;
+                                }
+                                video.timeCheckCounter--;
+
+                                let currentTime = video.currentTime
+                                let reenqueueTime = (isVideo ? (feeders.video ? feeders.video.timeOfReenqueue : 0) : (feeders.audio ? feeders.audio.timeOfReenqueue : 0))
+                                if(currentTime < reenqueueTime) {
+                                    video.ontimeupdate = null
+                                    console.log("VIVEK-DBG: Current time " + currentTime + " is less than the time of reenqueue time " + reenqueueTime);
+                                    cleanup();
+                                }
+                            }
+                        }).catch(() => {
+                            console.log("VIVEK-DBG: Enough data is fed, but timeupdate event is not received");
+                            cleanup()
+                        })
+                    }
+
+                    if(removeDataOnReenqueue) {
+                        waitForEvent(video, 'canplay', 5000).then(() => {
+                            console.log("VIVEK-DBG: Data loaded");
+                            return waitForEvent(video, 'playing', 5000, "Enough data is fed, but playing event not received");
+                        }).then(() => {
+                            console.log("VIVEK-DBG: Player started playback");
+                            checkTimeAfterReplacement();
+                        }).catch((error) => {
+                            console.log("VIVEK-DBG: " + error);
+                            cleanup()
+                        })
+                    } else {
+                        checkTimeAfterReplacement();
+                    }
+                }
+            }
+
+            var finishOrRenenqueue = (isVideo, urls, reenqueueTime) => {
+                if (feeders.video == null && feeders.audio == null) {
+                    return;
+                }
+
+                let feeder = (isVideo ? feeders.video : feeders.audio);
+                let shouldReenqueue = (isVideo ? feeders.video.reenqueue : feeders.audio.reenqueue);
+                let shouldRemoveFragment = (isVideo ? feeders.video.removeFragment : feeders.audio.removeFragment);
+                let sourceBuffer = isVideo ? feeders.video.sourceBuffer : feeders.audio.sourceBuffer;
+
+                if (shouldReenqueue) {
+                    if (feeder.scheduledReenqueueAt !== undefined && feeder.scheduledReenqueueAt != -1 && video.currentTime < feeder.scheduledReenqueueAt) {
+                        let delta = (feeder.scheduledReenqueueAt >= video.currentTime) ? (feeder.scheduledReenqueueAt - video.currentTime) * 1000 : 0;
+                        let timeOut = (delta > 100) ? delta : 50;
+                        setTimeout(() => { finishOrRenenqueue(isVideo, urls, feeder.reenqueueAt); }, timeOut);
+                        return;
+                    }
+
+                    let timeOfReenqueue = video.currentTime;
+                    var attachNewFeeder = function () {
+                        let newFeeder = new Feeder(sourceBuffer, urls, onFeedEnded, checkBufferPercentageAndwaitForCondition, isVideo);
+                        if (isVideo)
+                            feeders.video = newFeeder;
+                        else
+                            feeders.audio = newFeeder;
+                        newFeeder.timeOfReenqueue = timeOfReenqueue
+                    }
+
+                    if (shouldRemoveFragment) {
+                        console.log("VIVEK-DBG: Removing buffers @ " + video.currentTime);
+                        sourceBuffer.remove(0, 100);
+                        console.log("VIVEK-DBG: Removed buffers {0,20}");
+                        sourceBuffer.onupdateend = () => {
+                            sourceBuffer.onupdateend = undefined;
+                            attachNewFeeder();
+                        };
+                    } else {
+                        attachNewFeeder();
+                    }
+                } else {
+                    onFeedEnded();
+                }
+            }
+
+            function onSourceOpen() {
+                ms.removeEventListener('sourceopen', onSourceOpen)
+                ms.duration = 12 // maxFetchIdx * segmentDuration
+
+                if (enableAudio) {
+                    var audioBuffer = ms.addSourceBuffer('audio/mp4; codecs="mp4a.40.2"')
+                    feeders.audio = new Feeder(audioBuffer, urlsThroughNumber(audioUrls[0], 0, 3), () => { 
+                        finishOrRenenqueue(false, urlsThroughNumber(audioUrls[0], bufferIndexFromTime(video.currentTime), 3))
+                    }, checkBufferPercentageAndwaitForCondition, false);
+                }
+
+                var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.640028"')
+                feeders.video = new Feeder(videoBuffer, urlsThroughNumber(videoUrls[0], 0, 3), () => {
+                    finishOrRenenqueue(true, urlsThroughNumber(videoUrls[0], bufferIndexFromTime(video.currentTime), 3))
+                }, checkBufferPercentageAndwaitForCondition, true);
+                
+                [true, false].forEach((isVideo) => {
+                    let feeder = isVideo ? feeders.video : feeders.audio;
+                    if(feeder === undefined || feeder == null)
+                        return;
+                    feeder.reenqueue = isVideo ? reenqueueVideo : reenqueueAudio;
+                    feeder.scheduledReenqueueAt = isVideo ? reenqueueVideoAt : reenqueueAudioAt;
+                    feeder.removeFragment = removeDataOnReenqueue;
+                    console.log("VIVEK-DBG: " + (isVideo ? "Video" : "Audio") + ", Reenqueue:" + feeder.reenqueue + ", ReenqueueAt:" + feeder.scheduledReenqueueAt + ", RemoveDataOnReenqueue:" + feeder.removeFragment);
+                })
+            }
+        </script>
+    </body>
+</html>

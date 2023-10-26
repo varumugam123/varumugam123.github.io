@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset='UTF-8' />
+        <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate' />
+        <meta http-equiv='Pragma' content='no-cache' />
+        <meta http-equiv='Expires' content='0' />
+        <title>MSE Test</title>
+        
+        <script src="../lib/utils.js"></script>
+        <script src="../lib/mse.js"></script>
+
+        <style>
+        video {
+            width: 100%;
+            height: 100%;
+        }
+        body {
+            margin:0;
+            padding:0;
+            background-color:transparent;
+            overflow: hidden;
+        }
+        #stats {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            background-color: grey;
+            color: white;
+            font-size: xx-large;
+        }
+        #errors {
+            position: absolute;
+            left: 10px;
+            top: 250px;
+            background-color: red;
+            font-size: xx-large;
+        }
+        </style>
+    </head>
+    
+    <body>
+        <div>
+            <video id='videoPlayer' controls autoplay muted=false></video>
+            <div>
+                <span id='stats'/>
+            </div>
+            <div>
+                <span id='errors'/>
+            </div>
+        </div>
+
+        <script src="big_buck_bunny_720p_30fps.js"></script>
+        <script src="common.js"></script>
+        <script src="feeder.js"></script>
+
+        <script type='text/javascript'>
+            if (!window.MediaSource) {
+                throw 'No Media Source API available'
+            }
+            
+            if (window.checkTestCaseAPI) {
+                checkTestCaseAPI();
+            } else {
+                console.log("VIVEK-DBG: checkTestCaseAPI() is not found, running in Non-RDK browser");
+            }
+
+            var allFeedersEnded = false
+            var feeders = { video: null, audio: null }
+            var enableAudio = false
+
+            function cleanup() {
+                video.pause();
+
+                function abortSourceBuffer(feeders, video) {
+                    feeder = video ? feeders.video : feeders.audio;
+                    if(feeder !== undefined && feeder && feeder.sourceBuffer !== undefined && feeder.sourceBuffer)
+                        feeder.sourceBuffer.abort();
+                }
+
+                if (feeders !== undefined && feeders != null) {
+                    [true, false].forEach((value) => { abortSourceBuffer(feeders, value); });
+                }
+                
+                ms = null
+                feeders = {video: null, audio: null}
+                video.src = ''
+                video.remove()
+            }
+
+            function checkForPlaying() {
+                return (video.currentTime > 0 && !video.paused && !video.ended && video.readyState > 2);
+            }
+            
+            function onFeedEnded() {
+                for (let key in feeders)
+                    if (feeders.hasOwnProperty(key) && feeders[key] && !(feeders[key].ended))
+                        return
+                allFeedersEnded = true
+                console.log("VIVEK-DBG: All feeders ended");
+
+                waitForCondition(checkForPlaying, 500, "Video is not playing after seeking to 0.25").then(() => {
+                    console.log("VIVEK-DBG: Video is playing, currentTime=" + video.currentTime);
+                    return waitForCondition(function () {
+                                return (video.currentTime >= 10);
+                            }, ((10 - video.currentTime) * 1000) + 1000, "Video is not reached to end of the video");
+                }).then(() => {
+                    console.log("VIVEK-DBG: Test completed successfully");
+                    cleanup();
+                }).catch((error) => {
+                    console.log("VIVEK-DBG: " + error + ", currentTime=" + video.currentTime);
+                    cleanup();
+                });
+
+                // waitForCondition(checkForPlaying, 500).then(() => {
+                //     console.log("VIVEK-DBG: Video is playing, currentTime=" + video.currentTime);
+                //     waitForCondition(function () {
+                //         return (video.currentTime >= 10);
+                //     }, ((10 - video.currentTime) * 1000) + 1000).then(() => {
+                //         console.log("VIVEK-DBG: Test completed successfully");
+                //         cleanup();
+                //     }).catch(() => {
+                //         console.log("VIVEK-DBG: Test failed");
+                //         cleanup();
+                //     })
+                // }).catch(() => {
+                //     console.log("VIVEK-DBG: Video is not playing after seeking to 0.25, currentTime=" + video.currentTime);
+                //     cleanup();
+                // });
+            }
+
+            function onSourceOpen() {
+                ms.removeEventListener('sourceopen', onSourceOpen)
+                ms.duration = 20 // maxFetchIdx * segmentDuration
+
+                var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.640028"')
+
+                // Push init segment and data for 12 - 20 seconds
+                let videoUrlsToLoad = urlsThroughNumber(videoUrls[0], 4, 5);
+                videoUrlsToLoad.unshift(videoInitUrls[0])
+                feeders.video = new Feeder(videoBuffer, videoUrlsToLoad, () => {
+                    // Seek to buffered start
+                    let seekPosition = video.buffered.start(0) + 0.5;
+
+                    waitForEvent(video, 'seeked', 2500).then(() => {
+                        console.log("VIVEK-DBG: Video started playing, currentTime=" + video.currentTime);
+                        if(video.currentTime < seekPosition) {
+                            console.log("VIVEK-DBG: Video is not seeked to buffered start, currentTime=" + video.currentTime);
+                            cleanup();
+                            return;
+                        }
+                        
+                        // on timeupdate event, check if currentTime is 15.5 or greater, if so, seek to 1
+                        video.addEventListener('timeupdate', function onTimeUpdate() {
+                            if (video.currentTime >= 15.5) {
+                                video.removeEventListener('timeupdate', onTimeUpdate);
+                                console.log("VIVEK-DBG: Rewinding to 0.25");
+                                video.currentTime = 0.25;
+
+                                feeders.video = null;
+                                waitForEvent(video, 'seeking', 1000).then(() => {
+                                    console.log("VIVEK-DBG: Received seeking event and attached feeder, currentTime=" + video.currentTime);
+                                    feeders.video = new Feeder(videoBuffer, urlsThroughNumber(videoUrls[0], 1, 3), onFeedEnded, null, true);
+                                }).catch(() => {
+                                    console.log("VIVEK-DBG: Seeking event is not received, currentTime=" + video.currentTime);
+                                    cleanup();
+                                });
+                            }
+                        })
+                    }).catch(() => {
+                        console.log("VIVEK-DBG: Video is not seeked to " + seekPosition + ", currentTime=" + video.currentTime);
+                        cleanup();
+                    });
+
+                    video.currentTime =  seekPosition;
+                }, null, true);
+            }
+        </script>
+    </body>
+</html>

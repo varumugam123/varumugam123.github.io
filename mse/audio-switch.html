@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset='UTF-8' />
+        <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate' />
+        <meta http-equiv='Pragma' content='no-cache' />
+        <meta http-equiv='Expires' content='0' />
+        <title>MSE Test</title>
+        
+        <script src="../lib/utils.js"></script>
+        <script src="../lib/mse.js"></script>
+
+        <style>
+        video {
+            width: 100%;
+            height: 100%;
+        }
+        body {
+            margin:0;
+            padding:0;
+            background-color:transparent;
+            overflow: hidden;
+        }
+        #stats {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            background-color: grey;
+            color: white;
+            font-size: xx-large;
+        }
+        #errors {
+            position: absolute;
+            left: 10px;
+            top: 250px;
+            background-color: red;
+            font-size: xx-large;
+        }
+        </style>
+    </head>
+    
+    <body>
+        <div>
+            <video id='videoPlayer' controls autoplay muted=false></video>
+            <div>
+                <span id='stats'/>
+            </div>
+            <div>
+                <span id='errors'/>
+            </div>
+        </div>
+
+        <script src="big_buck_bunny_720p_30fps.js"></script>
+        <script src="common.js"></script>
+        <script src="feeder.js"></script>
+
+        <script type='text/javascript'>
+            if (!window.MediaSource) {
+                throw 'No Media Source API available'
+            }
+            
+            if (window.checkTestCaseAPI) {
+                checkTestCaseAPI();
+            } else {
+                console.log("VIVEK-DBG: checkTestCaseAPI() is not found, running in Non-RDK browser");
+            }
+
+            var allFeedersEnded = false
+            var feeders = { video: null, audio: null }
+            
+            var enableAudio = true
+            var triggerSimulation = true;
+            var positionBeforeBufferRemoval = video.currentTime;
+
+            function cleanup() {
+                video.pause();
+
+                function abortSourceBuffer(feeders, video) {
+                    feeder = video ? feeders.video : feeders.audio;
+                    if(feeder !== undefined && feeder && feeder.sourceBuffer !== undefined && feeder.sourceBuffer)
+                        feeder.sourceBuffer.abort();
+                }
+
+                if (feeders !== undefined && feeders != null) {
+                    [true, false].forEach((value) => { abortSourceBuffer(feeders, value); });
+                }
+                
+                ms = null
+                feeders = {video: null, audio: null}
+                video.src = ''
+                video.remove()
+            }
+
+            function checkForPlaying() {
+                return (video.currentTime > 0 && !video.paused && !video.ended && video.readyState > 2);
+            }
+            
+            function onFeedEnded() {
+                for (let key in feeders)
+                    if (feeders.hasOwnProperty(key) && feeders[key] && !(feeders[key].ended))
+                        return
+                allFeedersEnded = true
+
+                if(triggerSimulation) {
+                    console.log("VIVEK-DBG: All feeders ended, simulation is about to be triggered");
+
+                    waitForCondition(() => { return (video.currentTime >= 3);}, (3 - video.currentTime) * 1000).then(() => {
+                        simulateAudioLaunguageSwitch();
+                    }).catch(() => {
+                        console.log("VIVEK-DBG: Video is not reached to 3 to trigger simulation");
+                        cleanup()
+                    })
+                } else {
+                    console.log("VIVEK-DBG: All feeders ended after simulation");
+
+                    waitForCondition(checkForPlaying, 2000, "All feeders ended, but playing event not received").then(() => {
+                        return waitForCondition(function () {
+                                    return (video.currentTime >= (video.duration - 1));
+                                }, ((video.duration - video.currentTime) * 1000) + 1000, "Video is not reached to end of the video")
+                    }).then(() => {
+                        console.log("VIVEK-DBG: Test completed successfully");
+                        cleanup();
+                    }).catch((error) => {
+                        console.log("VIVEK-DBG: Test Failed, " + error);
+                        cleanup()
+                    })
+                }
+            }
+
+            function checkBufferPercentageAndwaitForCondition(isVideo, bufferPercentage) {
+                // console.log("VIVEK-DBG: checkBufferPercentageAndwaitForCondition: " + isVideo + " : " + video.readyState.toString() + ", " + bufferPercentage);
+
+                if (video.readyState >= 1) {
+                    if (feeders.video)
+                        feeders.video.appendComplete = undefined;
+                    if (feeders.audio)
+                        feeders.audio.appendComplete = undefined;
+
+                    waitForEvent(video, 'canplay', 5000).then(() => {
+                        console.log("VIVEK-DBG: Data loaded");
+                        return waitForEvent(video, 'playing', 10000)
+                    }).then(() => {
+                        console.log("VIVEK-DBG: Player started playback");
+                    }).catch((error) => {
+                        console.log("VIVEK-DBG: " + error + ", currentTime=" + video.currentTime);
+                        cleanup()
+                    })
+                }
+            }
+
+            function showBanner(text) {
+                if(this.showErrorBanner === undefined)
+                    this.showErrorBanner = true;
+
+                if(this.showErrorBanner) {
+                    this.showErrorBanner = false;
+                    console.log("VIVEK-DBG: " + text);
+                    document.getElementById('errors').innerHTML = text;
+                }
+            }
+
+            var currentTimeLoggerId = -1
+            var currentTimeLogger = function (annotation) {
+                clearTimeout(currentTimeLoggerId);
+                let currentTime = video.currentTime;
+                console.log("VIVEK-DBG: video.currentTime=" + currentTime + annotation);
+                if ((currentTime < positionBeforeBufferRemoval) && (positionBeforeBufferRemoval - currentTime) > 0.066) {
+                    let errorMsg = `video.currentTime(${currentTime}) is less than the position when audio data was replaced (${positionBeforeBufferRemoval})`;
+                    showBanner(errorMsg);
+                    cleanup();
+                    return;
+                }
+                currentTimeLoggerId = setTimeout(() => { currentTimeLogger(" @ 50 millisecond") }, 50);
+            }
+
+            function simulateAudioLaunguageSwitch() {
+                if(!triggerSimulation)
+                    return
+                triggerSimulation = false;
+
+                waitForTime(0).then(() => {
+                    video.currentTime = 13;
+                    console.log("VIVEK-DBG: Seeking to 13");
+
+                    return waitForEvent(video, 'seeked', 1000, "Seeked to 13, but seeked event not received")
+                }).then(() => {
+                    if (video.currentTime < 13) {
+                        console.log("VIVEK-DBG: Seeked to 13, but currentTime is less than 13");
+                        cleanup()
+                        return
+                    }
+
+                    console.log("VIVEK-DBG: Playing video after seeking to 13");
+                    console.log('VIVEK-DBG: Scheduling audio data replacement after 3 second');
+                    return waitForTime(3000);
+                }).then(() =>{
+                    video.pause();
+                    currentTimeLogger(" @ After pausing");
+                    positionBeforeBufferRemoval = video.currentTime;
+
+                    let audioFeeder = feeders.audio
+                    if (!audioFeeder) {
+                        console.log("VIVEK-DBG: Audio feeder is not available");
+                        return
+                    }
+
+                    let audioSourceBuffer = audioFeeder.sourceBuffer
+                    let promise = waitForEvent(audioSourceBuffer, 'updateend', 1000, "updateend for Audio buffer removal not received");
+                    audioSourceBuffer.remove(0, 1000);
+                    console.log('VIVEK-DBG: Audio data removed')
+                    return promise;
+                }).then(() => {
+                    currentTimeLogger(" @ Audio buffer removal completion");
+                    
+                    let audioFeeder = feeders.audio
+                    if (!audioFeeder) {
+                        console.log("VIVEK-DBG: Audio feeder is not available");
+                        return
+                    }
+
+                    let audioSourceBuffer = audioFeeder.sourceBuffer
+                    let promise = waitForEvent(audioSourceBuffer, 'updateend', 2000, "updateend for Audio buffer replacement not received")
+                    feeders.audio = new Feeder(audioSourceBuffer, urlsThroughNumber(audioUrls[0], bufferIndexFromTime(positionBeforeBufferRemoval - 0.010), 5), onFeedEnded, checkBufferPercentageAndwaitForCondition, false);
+                    return promise;
+                }).then(() => {
+                    currentTimeLogger(" @ Audio buffer replaced");
+                    let promise = waitForEvent(video, 'seeked', 2500, "Seeked to " + positionBeforeBufferRemoval + ", but seeked event not received");
+                    video.currentTime = positionBeforeBufferRemoval;
+                    return promise;
+                }).then(() => {
+                    currentTimeLogger(" @ Seek to " + positionBeforeBufferRemoval + " completion");
+                    video.play();
+                    clearTimeout(currentTimeLoggerId)
+                    currentTimeLoggerId = -1
+                }).catch((error) => {
+                    console.log("VIVEK-DBG: Failure in simulation, " + error);
+                    cleanup()
+                })
+                
+                // setTimeout(() => {
+                //     video.currentTime = 13;
+                //     console.log("VIVEK-DBG: Seeking to 13");
+
+                //     waitForEvent(video, 'seeked', 1000).then(() => {
+                //         if(video.currentTime < 13) {
+                //             console.log("VIVEK-DBG: Seeked to 13, but currentTime is less than 13");
+                //             cleanup()
+                //             return
+                //         }
+
+                //         console.log("VIVEK-DBG: Playing video after seeking to 13");
+                //         console.log('VIVEK-DBG: Scheduling audio data replacement after 3 second');
+                //         setTimeout(() => {
+                //             video.pause();
+                //             currentTimeLogger(" @ After pausing");
+                //             positionBeforeBufferRemoval = video.currentTime;
+
+                //             let audioFeeder = feeders.audio
+                //             if (!audioFeeder) {
+                //                 console.log("VIVEK-DBG: Audio feeder is not available");
+                //                 return
+                //             }
+
+                //             let audioSourceBuffer = audioFeeder.sourceBuffer
+                //             waitForEvent(audioSourceBuffer, 'updateend', 1000).then(() => {
+                //                 currentTimeLogger(" @ Audio buffer removal completion");
+                //                 waitForEvent(audioSourceBuffer, 'updateend', 1000).then(() => {                                    
+                //                         currentTimeLogger(" @ Audio buffer replaced");
+                //                         waitForEvent(video, 'seeked', 2500).then(() => {
+                //                             currentTimeLogger(" @ Seek to " + positionBeforeBufferRemoval + " completion");
+                //                             video.play();
+                //                             clearTimeout(currentTimeLoggerId)
+                //                             currentTimeLoggerId = -1
+                //                         }).catch(() => {
+                //                             console.log("VIVEK-DBG: Seeked to " + positionBeforeBufferRemoval + ", but seeked event not received");
+                //                             cleanup()
+                //                         })
+                //                         video.currentTime = positionBeforeBufferRemoval;
+                //                 }).catch(() => {
+                //                     console.log("VIVEK-DBG: updateend for Audio buffer replacement not received");
+                //                     cleanup()
+                //                 })
+
+                //                 feeders.audio = new Feeder(audioSourceBuffer, urlsThroughNumber(audioUrls[0], bufferIndexFromTime(positionBeforeBufferRemoval - 0.010), 5), onFeedEnded, checkBufferPercentageAndwaitForCondition, false);
+                //             }).catch(() => {
+                //                 console.log("VIVEK-DBG: updateend for Audio buffer removal not received");
+                //                 cleanup()
+                //             })
+
+                //             audioSourceBuffer.remove(0, 1000);
+                //             console.log('VIVEK-DBG: Audio data removed')
+                //         }, 3000)
+                //     }).catch(() => {
+                //         console.log("VIVEK-DBG: Seeked to 13, but seeked event not received");
+                //         cleanup()
+                //     })
+                // }, 0);
+            }
+
+            function onSourceOpen() {
+                ms.removeEventListener('sourceopen', onSourceOpen)
+                ms.duration = 20 // maxFetchIdx * segmentDuration
+
+                if (enableAudio) {
+                    var audioBuffer = ms.addSourceBuffer('audio/mp4; codecs="mp4a.40.2"')
+                    feeders.audio = new Feeder(audioBuffer, urlsThroughNumber(audioUrls[0], 0, 5), onFeedEnded, checkBufferPercentageAndwaitForCondition, false);
+                }
+                
+                var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.640028"')
+                feeders.video = new Feeder(videoBuffer, urlsThroughNumber(videoUrls[0], 0, 5), onFeedEnded, checkBufferPercentageAndwaitForCondition, true);
+            }
+        </script>
+    </body>
+</html>
