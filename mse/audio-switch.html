@@ -7,9 +7,6 @@
         <meta http-equiv='Expires' content='0' />
         <title>MSE Test</title>
         
-        <script src="../lib/utils.js"></script>
-        <script src="../lib/mse.js"></script>
-
         <style>
         video {
             width: 100%;
@@ -181,7 +178,6 @@
                 waitForTime(0).then(() => {
                     video.currentTime = 13;
                     console.log("VIVEK-DBG: Seeking to 13");
-
                     return waitForEvent(video, 'seeked', 1000, "Seeked to 13, but seeked event not received")
                 }).then(() => {
                     if (video.currentTime < 13) {
@@ -236,65 +232,6 @@
                     console.log("VIVEK-DBG: Failure in simulation, " + error);
                     cleanup()
                 })
-                
-                // setTimeout(() => {
-                //     video.currentTime = 13;
-                //     console.log("VIVEK-DBG: Seeking to 13");
-
-                //     waitForEvent(video, 'seeked', 1000).then(() => {
-                //         if(video.currentTime < 13) {
-                //             console.log("VIVEK-DBG: Seeked to 13, but currentTime is less than 13");
-                //             cleanup()
-                //             return
-                //         }
-
-                //         console.log("VIVEK-DBG: Playing video after seeking to 13");
-                //         console.log('VIVEK-DBG: Scheduling audio data replacement after 3 second');
-                //         setTimeout(() => {
-                //             video.pause();
-                //             currentTimeLogger(" @ After pausing");
-                //             positionBeforeBufferRemoval = video.currentTime;
-
-                //             let audioFeeder = feeders.audio
-                //             if (!audioFeeder) {
-                //                 console.log("VIVEK-DBG: Audio feeder is not available");
-                //                 return
-                //             }
-
-                //             let audioSourceBuffer = audioFeeder.sourceBuffer
-                //             waitForEvent(audioSourceBuffer, 'updateend', 1000).then(() => {
-                //                 currentTimeLogger(" @ Audio buffer removal completion");
-                //                 waitForEvent(audioSourceBuffer, 'updateend', 1000).then(() => {                                    
-                //                         currentTimeLogger(" @ Audio buffer replaced");
-                //                         waitForEvent(video, 'seeked', 2500).then(() => {
-                //                             currentTimeLogger(" @ Seek to " + positionBeforeBufferRemoval + " completion");
-                //                             video.play();
-                //                             clearTimeout(currentTimeLoggerId)
-                //                             currentTimeLoggerId = -1
-                //                         }).catch(() => {
-                //                             console.log("VIVEK-DBG: Seeked to " + positionBeforeBufferRemoval + ", but seeked event not received");
-                //                             cleanup()
-                //                         })
-                //                         video.currentTime = positionBeforeBufferRemoval;
-                //                 }).catch(() => {
-                //                     console.log("VIVEK-DBG: updateend for Audio buffer replacement not received");
-                //                     cleanup()
-                //                 })
-
-                //                 feeders.audio = new Feeder(audioSourceBuffer, urlsThroughNumber(audioUrls[0], bufferIndexFromTime(positionBeforeBufferRemoval - 0.010), 5), onFeedEnded, checkBufferPercentageAndwaitForCondition, false);
-                //             }).catch(() => {
-                //                 console.log("VIVEK-DBG: updateend for Audio buffer removal not received");
-                //                 cleanup()
-                //             })
-
-                //             audioSourceBuffer.remove(0, 1000);
-                //             console.log('VIVEK-DBG: Audio data removed')
-                //         }, 3000)
-                //     }).catch(() => {
-                //         console.log("VIVEK-DBG: Seeked to 13, but seeked event not received");
-                //         cleanup()
-                //     })
-                // }, 0);
             }
 
             function onSourceOpen() {

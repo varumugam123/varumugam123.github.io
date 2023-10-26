@@ -7,9 +7,6 @@
         <meta http-equiv='Expires' content='0' />
         <title>MSE Test</title>
         
-        <script src="../lib/utils.js"></script>
-        <script src="../lib/mse.js"></script>
-
         <style>
         video {
             width: 100%;
@@ -111,22 +108,6 @@
                     console.log("VIVEK-DBG: " + error + ", currentTime=" + video.currentTime);
                     cleanup();
                 });
-
-                // waitForCondition(checkForPlaying, 500).then(() => {
-                //     console.log("VIVEK-DBG: Video is playing, currentTime=" + video.currentTime);
-                //     waitForCondition(function () {
-                //         return (video.currentTime >= 10);
-                //     }, ((10 - video.currentTime) * 1000) + 1000).then(() => {
-                //         console.log("VIVEK-DBG: Test completed successfully");
-                //         cleanup();
-                //     }).catch(() => {
-                //         console.log("VIVEK-DBG: Test failed");
-                //         cleanup();
-                //     })
-                // }).catch(() => {
-                //     console.log("VIVEK-DBG: Video is not playing after seeking to 0.25, currentTime=" + video.currentTime);
-                //     cleanup();
-                // });
             }
 
             function onSourceOpen() {
