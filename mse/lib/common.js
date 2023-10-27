@@ -4,6 +4,7 @@ var getParamValue = (searchParam, param) => { let val = parseFloat(searchParam.g
 
 var logEvents = checkProp(searchParams.get('logEvents'))
 var moderateTimeupdateLogging = checkProp(searchParams.get('moderateTimeupdateLogging'))
+var cacheMediaBeforeTest = checkProp(searchParams.get('cacheMediaBeforeTest'))
 
 var ms = null
 var video = document.querySelector('video')
@@ -21,29 +22,42 @@ document.addEventListener('DOMContentLoaded', function () {
 })
 
 function initApp() {
-    ms = new MediaSource()
-    ms.addEventListener('sourceopen', onSourceOpen)
-
-    video.src = window.URL.createObjectURL(ms)
-
-    var lastLoggedEvent = 'timeupdate'
-    var lastLoggedTime = 0
-    const events = ['abort', 'canplay', 'canplaythrough', 'durationchange', 'emptied', 'encrypted', 'ended', 'error', 'loadeddata', 'loadedmetadata', 'loadstart', 'pause', 'play', 'playing', 'progress', 'ratechange', 'seeked', 'seeking', 'stalled', 'suspend', 'volumechange', 'waiting'];
-    for (let event in events) {
-        video.addEventListener(events[event], function (e) {
-            lastLoggedEvent = events[event];
+    video.installEventHandlers = function () {
+        var lastLoggedEvent = 'timeupdate'
+        var lastLoggedTime = 0
+        video.genericEventHandler = (e) => {
+            lastLoggedEvent = e.name;
             if (logEvents)
-                console.log("VIVEK-DBG: Received event: " + events[event] + " @ " + video.currentTime);
-        })
-        // console.log("VIVEK-DBG: Added event listener for: " + events[event]);
-    }
-    video.addEventListener('timeupdate', function (e) {
-        if (moderateTimeupdateLogging ? ((lastLoggedEvent != 'timeupdate') || ((video.currentTime - lastLoggedTime) > 1)) : true) {
-            lastLoggedEvent = 'timeupdate';
-            lastLoggedTime = video.currentTime
-            console.log("VIVEK-DBG: Received event: timeupdate @ " + lastLoggedTime);
+                console.log("VIVEK-DBG: Received event: " + e.type + " @ " + video.currentTime);
         }
-    })
+        video.timeUpdateEventHandler = (e) => {
+            if (moderateTimeupdateLogging ? ((lastLoggedEvent != 'timeupdate') || ((video.currentTime - lastLoggedTime) >= 1)) : true) {
+                lastLoggedEvent = 'timeupdate';
+                lastLoggedTime = video.currentTime
+                console.log("VIVEK-DBG: Received event: timeupdate @ " + lastLoggedTime);
+            }
+        }
+
+        video.events = ['timeupdate', 'abort', 'canplay', 'canplaythrough', 'durationchange', 'emptied', 'encrypted', 'ended', 'error', 'loadeddata', 'loadedmetadata', 'loadstart', 'pause', 'play', 'playing', 'progress', 'ratechange', 'seeked', 'seeking', 'stalled', 'suspend', 'volumechange', 'waiting'];
+        video.events.forEach((event) => { video.addEventListener(event, video.genericEventHandler); });
+        video.removeEventListener('timeupdate', video.genericEventHandler);
+        video.addEventListener('timeupdate', video.timeUpdateEventHandler);
+    }
+
+    video.removeEventHandlers = function () {
+        if (video.events === undefined || video.events == null)
+            return;
+        video.events.forEach((event) => { video.removeEventListener(event, video.genericEventHandler); });
+        video.removeEventListener('timeupdate', video.timeUpdateEventHandler);
+    }
+
+    cacheMediaIfRequiredSync().then(() => {
+        ms = new MediaSource()
+        waitForEvent(ms, 'sourceopen', 10000).then(onSourceOpen).catch((e) => { console.log("VIVEK-DBG: Failed to open MediaSource, " + e); });
+
+        video.installEventHandlers();
+        video.src = window.URL.createObjectURL(ms)
+    });
 }
 
 function checkForPlaying() {
@@ -102,8 +116,9 @@ function waitForCondition(condition, duration, reason) {
                 if (timeout <= 0) {
                     reject(reason === undefined ? "Timeout waiting for condition" : reason);
                 } else {
-                    scheduleTask(checkCondition, timeout);
-                    timeout = 0;
+                    let delay = timeout > 1000 ? 1000 : timeout;
+                    timeout -= delay;
+                    scheduleTask(checkCondition, delay);
                 }
             }
 
@@ -149,3 +164,46 @@ function waitForEvent(element, event, duration, errormsg) {
 //     wrapper();
 // }
 
+function cacheMediaIfRequiredSync() {
+    return new Promise((resolve, reject) => {
+        if (Feeder !== undefined && cacheMediaBeforeTest) {
+            let urls = []
+            urls = urls.concat(urlsThroughNumber(videoUrls[0], 0, 5));
+            urls = urls.concat(urlsThroughNumber(audioUrls[0], 0, 5));
+            new Feeder(
+                {
+                    updating: false,
+                    appendBuffer: function (data) { if (this.onupdateend !== undefined && this.onupdateend) { this.onupdateend(); } }
+                },
+                urls, () => {
+                    console.log("VIVEK-DBG: Cached media");
+                    resolve();
+                }, null, 1);
+        } else {
+            resolve();
+        }
+    });
+}
+
+function logSourceBufferInfo(buffer, video) {
+    for (let i = 0; i < buffer.buffered.length; ++i) {
+        console.log("VIVEK-DBG: " + (video ? "Video" : "Audio") + " Buffer info: " + i + ", [" + buffer.buffered.start(i) + " - " + buffer.buffered.end(i) + "]");
+    }
+}
+
+function logAllSourceBufferInfo() {
+    forAllSourceBuffers(logSourceBufferInfo);
+}
+
+// Cleanup functions
+
+function performCommonCleanup() {
+    video.pause();
+    video.removeEventHandlers();
+    clearAllTimers();
+    performFeederCleanup();
+
+    ms = null
+    video.src = ''
+    video.remove()
+}

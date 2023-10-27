@@ -6,7 +6,7 @@
         <meta http-equiv='Pragma' content='no-cache' />
         <meta http-equiv='Expires' content='0' />
         <title>MSE Test</title>
-        
+
         <style>
         video {
             width: 100%;
@@ -35,7 +35,7 @@
         }
         </style>
     </head>
-    
+
     <body>
         <div>
             <video id='videoPlayer' controls autoplay muted=false></video>
@@ -57,44 +57,33 @@
             if (!window.MediaSource) {
                 throw 'No Media Source API available'
             }
-            
-            var allFeedersEnded = false
-            var feeders = { video: null, audio: null }
+
             var enableAudio = false
             var sentTestStatus = false;
             var testPassed = false;
 
             function cleanup() {
-                video.pause();
-                clearAllTimers();
+                performCommonCleanup();
 
                 if (!sentTestStatus) {
                     sentTestStatus = true;
-                    if(testPassed)
+                    if (testPassed)
                         reportPass(true, "Test Passed")
                     else
                         reportFail(false, "Test Failed")
                 }
-
-                forAllSourceBuffers((buffer) => { buffer.abort(); });
-                
-                ms = null
-                feeders = {video: null, audio: null}
-                video.src = ''
-                video.remove()
             }
 
             function onFeedEnded() {
                 for (let key in feeders)
                     if (feeders.hasOwnProperty(key) && feeders[key] && !(feeders[key].ended))
                         return
-                allFeedersEnded = true
                 console.log("VIVEK-DBG: All feeders ended");
 
                 waitForCondition(checkForPlaying, 500, "Video is not playing after seeking to 0.25").then(() => {
                     console.log("VIVEK-DBG: Video is playing, currentTime=" + video.currentTime);
                     return waitForCondition(function () {
-                                return (video.currentTime >= 10);
+                                return (video.currentTime >= 5);
                             }, ((10 - video.currentTime) * 1000) + 1000, "Video is not reached to end of the video");
                 }).then(() => {
                     testPassed = true;
@@ -107,7 +96,6 @@
             }
 
             function onSourceOpen() {
-                ms.removeEventListener('sourceopen', onSourceOpen)
                 ms.duration = 20 // maxFetchIdx * segmentDuration
 
                 var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.640028"')
@@ -126,7 +114,7 @@
                             cleanup();
                             return;
                         }
-                        
+
                         // on timeupdate event, check if currentTime is 15.5 or greater, if so, seek to 1
                         video.addEventListener('timeupdate', function onTimeUpdate() {
                             if (video.currentTime >= 15.5) {

@@ -1,16 +1,22 @@
+
+var gCachedData = {};
+
 function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
-    this.endedCb = endedCb
     this.appendComplete = onAppendComplete;
+    this.endedCb = function () {
+        if (this.sourceBuffer !== undefined && this.sourceBuffer)
+            this.sourceBuffer.onupdateend = undefined;
+        endedCb();
+    }
 
     this.onUpdateEnd = function (e) {
-        if (this.sourceBuffer.updating || this.urls.length == 0 || this.ended)
+        if ((this.sourceBuffer && this.sourceBuffer.updating) || this.urls.length == 0 || this.ended)
             return
 
         if (this.fetchindex > 0 && this.appendComplete !== undefined && this.appendComplete != null)
             this.appendComplete(isVideo, (this.fetchindex / this.urls.length) * 100)
 
         if (this.fetchindex == this.urls.length) {
-            this.sourceBuffer.onupdateend = undefined
             console.log("VIVEK-DBG: All " + (isVideo ? "video" : "audio") + " buffers are pushed");
             this.ended = true
             this.xhr = undefined
@@ -24,29 +30,44 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
 
     this.appendToBuffer = function (videoChunk, url) {
         try {
-            console.log('VIVEK-DBG: appendToBuffer: ' + url)
-            this.sourceBuffer.appendBuffer(new Uint8Array(videoChunk))
+            if (this.sourceBuffer !== undefined && this.sourceBuffer) {
+                console.log('VIVEK-DBG: append: ' + url)
+                this.sourceBuffer.appendBuffer(new Uint8Array(videoChunk))
+            } else {
+                console.log('VIVEK-DBG: simulate append: ' + url)
+                this.onUpdateEnd(null)
+            }
         } catch (e) {
             console.error('Failed to append');
         }
     }
 
-    this.fetchAndAppend = function (url) {
+    this.fetch = function (url, completionHandler) {
         if (this.xhr)
             throw 'Cannot fetch "' + url + '"'
 
-        if (this.cachedData[url] !== undefined) {
-            this.appendToBuffer(this.cachedData[url], url);
+        if (gCachedData[url] !== undefined) {
+            completionHandler({ status: 200, response: gCachedData[url] }, url);
             return;
         }
 
-        console.log('VIVEK-DBG: fetchAndAppend: ' + url)
+        console.log('VIVEK-DBG: fetch: ' + url)
         var xhr = new XMLHttpRequest()
         xhr.open('GET', url)
         xhr.responseType = 'arraybuffer'
         xhr.onload = (e) => {
             var xhr = this.xhr
             this.xhr = null
+            if (xhr.status == 200)
+                gCachedData[url] = xhr.response;
+            completionHandler(xhr, url)
+        }
+        xhr.send()
+        this.xhr = xhr
+    }
+
+    this.fetchAndAppend = function (url) {
+        this.fetch(url, (xhr, url) => {
             if (xhr.status != 200) {
                 console.error('Load failed. Unexpected status code ' + xhr.status + ' for ' + url)
                 this.ended = true
@@ -54,26 +75,22 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
                 return
             }
 
-            this.cachedData[url] = xhr.response;
             this.appendToBuffer(xhr.response, url)
-        }
-        xhr.send()
-        this.xhr = xhr
+        })
     }
-
-    sourceBuffer.feeder = this;
 
     this.ended = false
     this.fetchindex = 0
     this.xhr = undefined
     this.urls = urls
-    this.cachedData = {};
 
     this.sourceBuffer = sourceBuffer
     this.sourceBuffer.onupdateend = (e) => { this.onUpdateEnd() }
 
     this.onUpdateEnd()
 }
+
+// Utility functions
 
 var feeders = { video: null, audio: null }
 
@@ -97,3 +114,32 @@ function forAllSourceBuffers(doSomething) {
             doSomething(feeder.sourceBuffer, isVideo);
     });
 }
+
+function allFeedersMeetCondition(predicate) {
+    let feederCount = 0;
+    let feederMeetConditionCount = 0;
+    forAllFeeders((feeder, isVideo) => {
+        ++feederCount;
+        if (predicate(feeder, isVideo))
+            ++feederMeetConditionCount;
+    });
+    return feederCount == feederMeetConditionCount;
+}
+
+function allBuffersMeetCondition(predicate) {
+    let bufferCount = 0;
+    let bufferMeetConditionCount = 0;
+    forAllSourceBuffers((buffer, isVideo) => {
+        ++bufferCount;
+        if (predicate(buffer, isVideo))
+            ++bufferMeetConditionCount;
+    });
+    return bufferCount == bufferMeetConditionCount;
+}
+
+function performFeederCleanup() {
+    forAllSourceBuffers((buffer) => { buffer.abort(); });
+    feeders = { video: null, audio: null }
+}
+
+
