@@ -119,60 +119,62 @@
             function checkBufferPercentageAndwaitForCondition(isVideo, bufferPercentage) {
                 // console.log("VIVEK-DBG: checkBufferPercentageAndwaitForCondition: " + isVideo + " : " + video.readyState.toString() + ", " + bufferPercentage);
 
-                if (video.readyState >= 1) {
-                    if (isVideo) {
-                        if (feeders.video)
-                            feeders.video.appendComplete = undefined;
-                    } else {
-                        if (feeders.audio)
-                            feeders.audio.appendComplete = undefined;
-                    }
+                let feeder = isVideo ? feeders.video : feeders.audio;
+                if(feeder === undefined || feeder == null)
+                    return;
 
-                    let allSourceBuffersHaveData = allFeedersMeetCondition((feeder, isVideo) => {
-                        return (feeder.appendComplete === undefined);
-                    });
+                // wait for two buffers (including initialization segment) to start playback from 0 and wait for 1 buffer on reenqueue
+                let buffersToStartMonitoringForPlaying = (feeder.reenqueue && feeder.doneReenqueuing) ? 1 : 2;
 
-                    if (allSourceBuffersHaveData) {
-                        let checkTimeAfterReplacement = function () {
-                            waitForEvent(video, 'timeupdate', 1000).then(() => {
-                                console.log("VIVEK-DBG: Got timeupdate event");
-                                video.timeCheckCounter = 5;
-                                video.ontimeupdate = () => {
-                                    if(video.timeCheckCounter <= 0) {
-                                        video.ontimeupdate = null
-                                        return;
-                                    }
-                                    video.timeCheckCounter--;
+                // Once enough buffers to get the playback started are appended remove appendBufferCompletion monitoring
+                if(feeder.bufferCount == buffersToStartMonitoringForPlaying)
+                    feeder.appendComplete = undefined;
 
-                                    let currentTime = video.currentTime
-                                    let reenqueueTime = (isVideo ? (feeders.video ? feeders.video.timeOfReenqueue : 0) : (feeders.audio ? feeders.audio.timeOfReenqueue : 0))
-                                    if(currentTime < reenqueueTime) {
-                                        video.ontimeupdate = null
-                                        console.log("VIVEK-DBG: Current time " + currentTime + " is less than the time of reenqueue time " + reenqueueTime);
-                                        cleanup();
-                                    }
+                let allSourceBuffersHaveData = allFeedersMeetCondition((feeder, isVideo) => {
+                    return (feeder.appendComplete === undefined);
+                });
+
+                // When all sources have enough buffers to get started
+                if (allSourceBuffersHaveData) {
+                    let checkTimeAfterReplacement = function (count=10) {
+                        waitForEvent(video, 'timeupdate', 1000).then(() => {
+                            console.log("VIVEK-DBG: Got timeupdate event");
+                            video.timeCheckCounter = count;
+                            video.ontimeupdate = () => {
+                                if(video.timeCheckCounter <= 0) {
+                                    video.ontimeupdate = null
+                                    return;
                                 }
-                            }).catch(() => {
-                                console.log("VIVEK-DBG: Enough data is fed, but timeupdate event is not received");
-                                cleanup()
-                            })
-                        }
+                                video.timeCheckCounter--;
 
-                        waitForEvent(video, 'playing', 10000, "Enough data is fed, but playing event not received").then(() => {
-                            console.log("VIVEK-DBG: Player started playback");
-                            checkTimeAfterReplacement();
-                        }).catch((error) => {
-                            console.log("VIVEK-DBG: " + error);
+                                let currentTime = video.currentTime
+                                let reenqueueTime = (isVideo ? (feeders.video ? feeders.video.timeOfReenqueue : 0) : (feeders.audio ? feeders.audio.timeOfReenqueue : 0))
+                                if(currentTime < reenqueueTime) {
+                                    video.ontimeupdate = null
+                                    console.log("VIVEK-DBG: Current time " + currentTime + " is less than the time of reenqueue time " + reenqueueTime);
+                                    cleanup();
+                                }
+                            }
+                        }).catch(() => {
+                            console.log("VIVEK-DBG: Enough data is fed, but timeupdate event is not received");
                             cleanup()
                         })
                     }
+
+                    waitForCondition(checkForPlaying, 10000, "Enough data is fed, but playback hasn't started").then(() => {
+                        console.log("VIVEK-DBG: Player started playback");
+                        if(feeder.doneReenqueuing)
+                            checkTimeAfterReplacement();
+                    }).catch((error) => {
+                        console.log("VIVEK-DBG: " + error);
+                        cleanup()
+                    })
                 }
             }
 
             var finishOrRenenqueue = (isVideo, urls, reenqueueTime) => {
-                if (feeders.video == null && feeders.audio == null) {
+                if (feeders.video == null && feeders.audio == null)
                     return;
-                }
 
                 let feeder = (isVideo ? feeders.video : feeders.audio);
                 let shouldReenqueue = (isVideo ? feeders.video.reenqueue : feeders.audio.reenqueue);
@@ -182,7 +184,7 @@
                 if (shouldReenqueue) {
                     if (feeder.scheduledReenqueueAt !== undefined && feeder.scheduledReenqueueAt != -1 && video.currentTime < feeder.scheduledReenqueueAt) {
                         let delta = (feeder.scheduledReenqueueAt >= video.currentTime) ? (feeder.scheduledReenqueueAt - video.currentTime) * 1000 : 0;
-                        let timeOut = (delta > 100) ? delta : 50;
+                        let timeOut = (delta > 50) ? delta : 50;
                         console.log("Scheduling task to reenqueue in " + timeOut + " ms, for " + (isVideo ? "Video" : "Audio") + " @ " + video.currentTime);
                         setTimeout(() => { finishOrRenenqueue(isVideo, urls, feeder.reenqueueAt); }, timeOut);
                         return;
@@ -191,11 +193,18 @@
                     let timeOfReenqueue = video.currentTime;
                     var attachNewFeeder = function () {
                         let newFeeder = new Feeder(sourceBuffer, urls, onFeedEnded, checkBufferPercentageAndwaitForCondition, isVideo);
+                        newFeeder.reenqueue = feeder.reenqueue;
+                        newFeeder.scheduledReenqueueAt = feeder.scheduledReenqueueAt;
+                        newFeeder.removeFragment = feeder.removeFragment;
+                        newFeeder.timeOfReenqueue = timeOfReenqueue
+                        newFeeder.doneReenqueuing= true;
+
                         if (isVideo)
                             feeders.video = newFeeder;
                         else
                             feeders.audio = newFeeder;
-                        newFeeder.timeOfReenqueue = timeOfReenqueue
+
+                        console.log("VIVEK-DBG: Attached new feeder for " + (isVideo ? "Video" : "Audio"));
                     }
 
                     if (shouldRemoveFragment) {
@@ -236,6 +245,8 @@
                     feeder.reenqueue = isVideo ? reenqueueVideo : reenqueueAudio;
                     feeder.scheduledReenqueueAt = isVideo ? reenqueueVideoAt : reenqueueAudioAt;
                     feeder.removeFragment = removeDataOnReenqueue;
+                    feeder.doneReenqueuing = false
+
                     console.log("VIVEK-DBG: " + (isVideo ? "Video" : "Audio") + ", Reenqueue:" + feeder.reenqueue + ", ReenqueueAt:" + feeder.scheduledReenqueueAt + ", RemoveDataOnReenqueue:" + feeder.removeFragment);
                 })
             }

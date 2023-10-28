@@ -28,9 +28,6 @@ function bufferIndexFromTime(time, segmentDuration = 4) {
 }
 
 function urlsThroughNumber(urlTemplate, start, end) {
-    var result = []
-    for (let i = start; i <= end; ++i)
-        result.push(urlTemplate.replace('$Number$', i))
-    return result
+    return range(start, end).map((i) => urlTemplate.replace('$Number$', i));
 }
 

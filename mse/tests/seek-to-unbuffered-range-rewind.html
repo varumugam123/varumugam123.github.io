@@ -120,7 +120,7 @@
                         video.addEventListener('timeupdate', function onTimeUpdate() {
                             if (video.currentTime >= 15.5) {
                                 video.removeEventListener('timeupdate', onTimeUpdate);
-                                console.log("VIVEK-DBG: Rewinding to 0.25");
+                                console.log("VIVEK-DBG: Rewinding to 0.25, for which no data is pushed yet");
                                 video.currentTime = 0.25;
 
                                 feeders.video = null;

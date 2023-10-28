@@ -14,8 +14,12 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
         if ((this.sourceBuffer && this.sourceBuffer.updating) || this.urls.length == 0 || this.ended)
             return
 
-        if (this.fetchindex > 0 && this.appendComplete !== undefined && this.appendComplete != null)
-            this.appendComplete(isVideo, (this.fetchindex / this.urls.length) * 100)
+        // This is because first time onUpdateEnd is called by Feeder itself to kick start fetchAndAppend()
+        if (this.fetchindex > 0) {
+            this.bufferCount++;
+            if (this.appendComplete !== undefined && this.appendComplete != null)
+                this.appendComplete(isVideo, (this.fetchindex / this.urls.length) * 100)
+        }
 
         if (this.fetchindex == this.urls.length) {
             console.log("VIVEK-DBG: All " + (isVideo ? "video" : "audio") + " buffers are pushed");
@@ -85,10 +89,11 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
     this.xhr = undefined
     this.urls = urls
 
+    this.bufferCount = 0
     this.sourceBuffer = sourceBuffer
     this.sourceBuffer.onupdateend = (e) => { this.onUpdateEnd() }
 
-    this.onUpdateEnd()
+    scheduleTask(() => { this.onUpdateEnd(); }, 10);
 }
 
 // Utility functions

@@ -196,6 +196,16 @@ function logAllSourceBufferInfo() {
     forAllSourceBuffers(logSourceBufferInfo);
 }
 
+// Ref : https://dev.to/ycmjason/how-to-create-range-in-javascript-539i#:~:text=range%20is%20a%20function%20that,be%20using%20a%20for%20loop.
+const rangeImpl = (s, e) => e > s ? Array(e - s + 1).fill(0).map((x, y) => y + s) : Array(s - e + 1).fill(0).map((x, y) => - y + s);
+function range(start, end) {
+    if (end === undefined) {
+        end = start;
+        start = 0;
+    }
+    return rangeImpl(start, end);
+}
+
 // Cleanup functions
 
 function performCommonCleanup() {
@@ -210,3 +220,4 @@ function performCommonCleanup() {
         video.remove()
     }).catch((e) => { console.log("VIVEK-DBG: Failed to remove video, " + e); });
 }
+
