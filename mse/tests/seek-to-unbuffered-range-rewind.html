@@ -28,7 +28,7 @@
         }
         #errors {
             position: absolute;
-            left: 10px;
+            /* left: 10px; */
             top: 250px;
             background-color: red;
             font-size: xx-large;
@@ -42,8 +42,8 @@
             <div>
                 <span id='stats'/>
             </div>
-            <div>
-                <span id='errors'/>
+            <div style="text-align:center;" >
+                <span id='errors'></span>
             </div>
         </div>
 
@@ -67,10 +67,14 @@
 
                 if (!sentTestStatus) {
                     sentTestStatus = true;
-                    if (testPassed)
+                    if (testPassed) {
+                        document.querySelector('#errors').style.backgroundColor = 'Green';
+                        document.querySelector('#errors').innerHTML = "Test Passed";
                         reportPass(true, "Test Passed")
-                    else
+                    } else {
+                        document.querySelector('#errors').innerHTML = "Test Failed";
                         reportFail(false, "Test Failed")
+                    }
                 }
             }
 
@@ -109,11 +113,8 @@
 
                     waitForEvent(video, 'seeked', 2500).then(() => {
                         console.log("VIVEK-DBG: Video started playing, currentTime=" + video.currentTime);
-                        if(video.currentTime < seekPosition) {
-                            console.log("VIVEK-DBG: Video is not seeked to buffered start, currentTime=" + video.currentTime);
-                            cleanup();
-                            return;
-                        }
+                        if(video.currentTime < seekPosition)
+                            throw ("Video is seeked to " + seekPosition + ", but currentTime is less than " + seekPosition);
 
                         // on timeupdate event, check if currentTime is 15.5 or greater, if so, seek to 1
                         video.addEventListener('timeupdate', function onTimeUpdate() {
@@ -132,8 +133,8 @@
                                 });
                             }
                         })
-                    }).catch(() => {
-                        console.log("VIVEK-DBG: Video is not seeked to " + seekPosition + ", currentTime=" + video.currentTime);
+                    }).catch((error) => {
+                        console.log("VIVEK-DBG: " + error);
                         cleanup();
                     });
 

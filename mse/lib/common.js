@@ -38,9 +38,10 @@ function initApp() {
             }
         }
 
-        video.events = ['timeupdate', 'abort', 'canplay', 'canplaythrough', 'durationchange', 'emptied', 'encrypted', 'ended', 'error', 'loadeddata', 'loadedmetadata', 'loadstart', 'pause', 'play', 'playing', 'progress', 'ratechange', 'seeked', 'seeking', 'stalled', 'suspend', 'volumechange', 'waiting'];
+        video.events = ['abort', 'canplay', 'canplaythrough', 'durationchange', 'emptied', 'encrypted',
+            'ended', 'error', 'loadeddata', 'loadedmetadata', 'loadstart', 'pause', 'play', 'playing',
+            'progress', 'ratechange', 'seeked', 'seeking', 'stalled', 'suspend', 'volumechange', 'waiting'];
         video.events.forEach((event) => { video.addEventListener(event, video.genericEventHandler); });
-        video.removeEventListener('timeupdate', video.genericEventHandler);
         video.addEventListener('timeupdate', video.timeUpdateEventHandler);
     }
 
@@ -204,6 +205,8 @@ function performCommonCleanup() {
     performFeederCleanup();
 
     ms = null
-    video.src = ''
-    video.remove()
+    waitForTime(3000).then(() => {
+        video.src = ''
+        video.remove()
+    }).catch((e) => { console.log("VIVEK-DBG: Failed to remove video, " + e); });
 }

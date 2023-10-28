@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset='UTF-8' />
+        <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate' />
+        <meta http-equiv='Pragma' content='no-cache' />
+        <meta http-equiv='Expires' content='0' />
+        <title>MSE Test</title>
+
+        <style>
+        video {
+            width: 100%;
+            height: 100%;
+        }
+        body {
+            margin:0;
+            padding:0;
+            background-color:transparent;
+            overflow: hidden;
+        }
+        #stats {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            background-color: grey;
+            color: white;
+            font-size: xx-large;
+        }
+        #errors {
+            position: absolute;
+            /* left: 10px; */
+            top: 250px;
+            background-color: red;
+            font-size: xx-large;
+        }
+        </style>
+    </head>
+
+    <body>
+        <div>
+            <video id='videoPlayer' controls autoplay muted=false></video>
+            <div>
+                <span id='stats'/>
+            </div>
+            <div style="text-align:center;" >
+                <span id='errors'></span>
+            </div>
+        </div>
+
+        <script src="../lib/big_buck_bunny_720p_30fps.js"></script>
+        <script src="../lib/common.js"></script>
+        <script src="../lib/feeder.js"></script>
+
+        <script type='text/javascript'>
+            if (!window.MediaSource) {
+                throw 'No Media Source API available'
+            }
+
+            var sentTestStatus = false;
+            var testPassed = false;
+
+            function updateStats() {
+                const buffered = video.buffered
+                var statsMessage = 'State = ' + (video.paused ? 'paused' : 'playing') + ', duration = ' + video.duration.toFixed(3) + ', ct = ' + video.currentTime.toFixed(3)
+
+                if (buffered.length) {
+                    statsMessage += ' buffered ='
+                    for (var i = 0; i < buffered.length; ++i) {
+                        statsMessage += ' [' + buffered.start(i).toFixed(3) + ', ' + buffered.end(i).toFixed(3) + ')'
+                    }
+                }
+
+                // console.log(statsMessage)
+                document.querySelector('#stats').innerHTML = statsMessage
+            }
+
+            function cleanup() {
+                performCommonCleanup();
+                video.removeEventListener('timeupdate', updateStats);
+
+                if (!sentTestStatus) {
+                    sentTestStatus = true;
+                    if (testPassed) {
+                        document.querySelector('#errors').style.backgroundColor = 'Green';
+                        document.querySelector('#errors').innerHTML = "Test Passed";
+                        reportPass(true, "Test Passed")
+                    } else {
+                        document.querySelector('#errors').innerHTML = "Test Failed";
+                        reportFail(false, "Test Failed")
+                    }
+                }
+            }
+
+            function onSourceOpen() {
+                ms.duration = 8
+
+                function onFeedEnded() {
+                    console.log("VIVEK-DBG: All feeders ended");
+                    var pushBufferBeforeSeek = checkProp(searchParams.get("pushBufferBeforeSeek"));
+
+                    waitForTime(0)
+                    .then(() => {
+                        console.log("VIVEK-DBG: Starting playback from 6");
+                        let promise = waitForEvent(video, 'seeked', 1000)
+                        video.currentTime = 6
+                        return promise;
+                    }).then(() => {
+                        console.log("VIVEK-DBG: Received seeking event, currentTime=" + video.currentTime);
+                        if(video.currentTime < 6)
+                            throw "Video is seeked to 6, but currentTime is less than 6";
+
+                        return waitForTime(1000);
+                    }).then(() => {
+                        video.pause();
+                        console.log("VIVEK-DBG: Set video to pause, currentTime=" + video.currentTime);
+                    }).then(() => {
+                        return waitForTime(1000);
+                    }).then(() => {
+                        let promise = waitForEvent(feeders.video.sourceBuffer, 'updateend', 1500);
+                        feeders.video.sourceBuffer.remove(0, 1000);
+                        updateStats();
+                        return promise;
+                    }).then(() => {
+                        return waitForTime(2000)
+                    }).then(() => {
+                        console.log("VIVEK-DBG: Removed data {0,8} from sourceBuffer");
+                        updateStats();
+                        video.play();
+                        console.log("VIVEK-DBG: Set video to play, currentTime=" + video.currentTime);
+                    }).then(() => {
+                        return waitForTime(2000)
+                    }).then(() => {
+                        let promise = waitForEvent(video, 'seeked', 5000);
+                        if(pushBufferBeforeSeek) {
+                            console.log("VIVEK-DBG: Pushing data {0,4} to sourceBuffer, before seeking to 1");
+                            feeders.video = new Feeder(feeders.video.sourceBuffer, urlsThroughNumber(videoUrls[0], 1, 1), () => {
+                                logAllSourceBufferInfo();
+                                video.currentTime = 1;
+                            }, null, true);
+                        } else {
+                            console.log("VIVEK-DBG: Seeking to 1 and then pushing data {0,4} to sourceBuffer on reception of 'seeking' event");
+                            waitForEvent(video, 'seeking', 1000).then(() => {
+                                console.log("VIVEK-DBG: Received seeking event, currentTime=" + video.currentTime);
+                                feeders.video = new Feeder(feeders.video.sourceBuffer, urlsThroughNumber(videoUrls[0], 1, 1), () => {
+                                    logAllSourceBufferInfo();
+                                }, null, true);
+                            }).catch((error) => {
+                                console.log("VIVEK-DBG: " + error);
+                                cleanup();
+                            });
+                            video.currentTime = 1
+                        }
+                        return promise;
+                    }).then(() => {
+                        console.log("VIVEK-DBG: Received seeked event, currentTime=" + video.currentTime);
+                        return waitForCondition(() => {return video.currentTime >= 3}, 5000, "Video didn't play from 1 to 3")
+                    }).then(() => {
+                        testPassed = true;
+                        console.log("VIVEK-DBG: Test completed successfully");
+                        cleanup();
+                    }).catch((error) => {
+                        console.log("VIVEK-DBG: " + error);
+                        cleanup();
+                    });
+                }
+
+                var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.640028"')
+                feeders.video = new Feeder(videoBuffer, urlsThroughNumber(videoUrls[0], 0, 2), onFeedEnded, null, true)
+
+                video.addEventListener('timeupdate', updateStats);
+            }
+        </script>
+    </body>
+</html>

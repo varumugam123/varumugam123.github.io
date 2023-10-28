@@ -6,7 +6,8 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
     this.endedCb = function () {
         if (this.sourceBuffer !== undefined && this.sourceBuffer)
             this.sourceBuffer.onupdateend = undefined;
-        endedCb();
+        if (endedCb !== undefined && endedCb != null)
+            endedCb();
     }
 
     this.onUpdateEnd = function (e) {

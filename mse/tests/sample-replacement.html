@@ -8,31 +8,31 @@
         <title>MSE Test</title>
 
         <style>
-         video {
-             width: 100%;
-             height: 100%;
-         }
-         body {
-             margin:0;
-             padding:0;
-             background-color:transparent;
-             overflow: hidden;
-         }
-         #stats {
-             position: absolute;
-             left: 10px;
-             top: 10px;
-             background-color: grey;
-             color: white;
-             font-size: xx-large;
-         }
-         #errors {
-             position: absolute;
-             left: 10px;
-             top: 250px;
-             background-color: red;
-             font-size: xx-large;
-         }
+        video {
+            width: 100%;
+            height: 100%;
+        }
+        body {
+            margin:0;
+            padding:0;
+            background-color:transparent;
+            overflow: hidden;
+        }
+        #stats {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            background-color: grey;
+            color: white;
+            font-size: xx-large;
+        }
+        #errors {
+            position: absolute;
+            /* left: 10px; */
+            top: 250px;
+            background-color: red;
+            font-size: xx-large;
+        }
         </style>
     </head>
 
@@ -42,8 +42,8 @@
             <div>
                 <span id='stats'/>
             </div>
-            <div>
-                <span id='errors'/>
+            <div style="text-align:center;" >
+                <span id='errors'></span>
             </div>
         </div>
 
@@ -82,10 +82,14 @@
 
                 if (!sentTestStatus) {
                     sentTestStatus = true;
-                    if (testPassed)
+                    if (testPassed) {
+                        document.querySelector('#errors').style.backgroundColor = 'Green';
+                        document.querySelector('#errors').innerHTML = "Test Passed";
                         reportPass(true, "Test Passed")
-                    else
+                    } else {
+                        document.querySelector('#errors').innerHTML = "Test Failed";
                         reportFail(false, "Test Failed")
+                    }
                 }
             }
 

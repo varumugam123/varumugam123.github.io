@@ -28,7 +28,7 @@
         }
         #errors {
             position: absolute;
-            left: 10px;
+            /* left: 10px; */
             top: 250px;
             background-color: red;
             font-size: xx-large;
@@ -42,8 +42,8 @@
             <div>
                 <span id='stats'/>
             </div>
-            <div>
-                <span id='errors'/>
+            <div style="text-align:center;" >
+                <span id='errors'></span>
             </div>
         </div>
 
@@ -70,10 +70,14 @@
 
                 if (!sentTestStatus) {
                     sentTestStatus = true;
-                    if(testPassed)
+                    if (testPassed) {
+                        document.querySelector('#errors').style.backgroundColor = 'Green';
+                        document.querySelector('#errors').innerHTML = "Test Passed";
                         reportPass(true, "Test Passed")
-                    else
+                    } else {
+                        document.querySelector('#errors').innerHTML = "Test Failed";
                         reportFail(false, "Test Failed")
+                    }
                 }
             }
 
@@ -159,8 +163,9 @@
                     let errorMsg = `video.currentTime(${currentTime}) is less than the position when audio data was replaced (${positionBeforeBufferRemoval})`;
                     showBanner(errorMsg);
                     cleanup();
-                    return;
+                    throw (errorMsg);
                 }
+
                 currentTimeValidatorId = scheduleTask(() => { currentTimeValidator(" @ 50 millisecond") }, 50);
             }
 
@@ -174,11 +179,8 @@
                     video.currentTime = 13;
                     return waitForEvent(video, 'seeked', 1000, "Seeked to 13, but seeked event not received")
                 }).then(() => {
-                    if (video.currentTime < 13) {
-                        console.log("VIVEK-DBG: Seeked to 13, but currentTime is less than 13");
-                        cleanup()
-                        return
-                    }
+                    if (video.currentTime < 13)
+                        throw "Seeked to 13, but currentTime is less than 13";
 
                     console.log("VIVEK-DBG: Playing video after seeking to 13");
                     console.log('VIVEK-DBG: Scheduling audio data replacement after 3 second');
@@ -188,10 +190,8 @@
                     currentTimeValidator(" @ After pausing");
 
                     let audioFeeder = feeders.audio
-                    if (!audioFeeder) {
-                        console.log("VIVEK-DBG: Audio feeder is not available");
-                        return
-                    }
+                    if (!audioFeeder)
+                        throw "Audio feeder is not available";
 
                     let audioSourceBuffer = audioFeeder.sourceBuffer
                     let promise = waitForEvent(audioSourceBuffer, 'updateend', 1000, "updateend for Audio buffer removal not received");
@@ -203,10 +203,8 @@
                     currentTimeValidator(" @ Audio buffer removal completion");
 
                     let audioFeeder = feeders.audio
-                    if (!audioFeeder) {
-                        console.log("VIVEK-DBG: Audio feeder is not available");
-                        return
-                    }
+                    if (!audioFeeder)
+                        throw "Audio feeder is not available";
 
                     positionBeforeBufferRemoval -= 0.010; // adjust timing slightly before to trigger seeked event
                     let audioSourceBuffer = audioFeeder.sourceBuffer
