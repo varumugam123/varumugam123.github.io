@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset='UTF-8' />
+        <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate' />
+        <meta http-equiv='Pragma' content='no-cache' />
+        <meta http-equiv='Expires' content='0' />
+        <title>MSE Seek Forward Test</title>
+
+        <style>
+            video {
+                width: 100%;
+                height: 100%;
+            }
+
+            body {
+                margin: 0;
+                padding: 0;
+                background-color: transparent;
+                overflow: hidden;
+            }
+
+            #stats {
+                position: absolute;
+                left: 10px;
+                top: 10px;
+                background-color: grey;
+                color: white;
+                font-size: xx-large;
+            }
+
+            #errors {
+                position: absolute;
+                /* left: 10px; */
+                top: 250px;
+                background-color: red;
+                font-size: xx-large;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div>
+            <video id='videoPlayer' controls autoplay muted=false></video>
+            <div>
+                <span id='stats' />
+            </div>
+            <div style="text-align:center;">
+                <span id='errors'></span>
+            </div>
+        </div>
+
+        <script src="../lib/utils.js"></script>
+        <script src="../lib/mse.js"></script>
+        <script src="../lib/common.js"></script>
+        <script src="../lib/feeder.js"></script>
+
+        <script type="text/javascript">
+            if (!window.MediaSource) {
+                throw 'No Media Source API available'
+            }
+
+            var sentTestStatus = false;
+            var testPassed = false;
+            var shouldSeekBeforeBuffering = checkProp('seekBeforeBuffering');
+            var seekCloseToStartOfSegment = checkProp('seekCloseToStartOfSegment');
+            var segmentDuration = 4;
+
+            function cleanup() {
+                performCommonCleanup();
+
+                if (!sentTestStatus) {
+                    sentTestStatus = true;
+                    if (testPassed) {
+                        document.querySelector('#errors').style.backgroundColor = 'Green';
+                        document.querySelector('#errors').innerHTML = "Test Passed";
+                        reportPass(true, "Test Passed")
+                    } else {
+                        document.querySelector('#errors').innerHTML = "Test Failed";
+                        reportFail(false, "Test Failed")
+                    }
+                }
+            }
+
+            function onSourceOpen() {
+                ms.duration = nextDivisibleNumber(16, segmentDuration)
+
+                let initUrl = 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/video/720_2400000/dash/init.mp4'
+                let segmentUrl = 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/video/720_2400000/dash/segment_$Number$.m4s'
+                let urls = urlsThroughNumber(segmentUrl, 0, (ms.duration / segmentDuration) - 1)
+                urls.unshift(initUrl)
+
+                cacheMediaIfRequiredSync(urls).then(() => {
+                    var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.4d401f"');
+
+                    feeders.video = new Feeder(videoBuffer, urls, null, () => {
+                        feeders.video.appendComplete = null;
+                        waitForEvent(video, 'playing', 10000).then(() => {
+                            let seekPoint = nextDivisibleNumber((video.duration - (video.duration / 4)), segmentDuration) + ((segmentDuration / 8) * (seekCloseToStartOfSegment ? 1 : -1));
+                            console.log(`VIVEK-DBG: Would be seeking to ${seekPoint} seconds @ ${video.currentTime}`);
+
+                            waitForCondition(() => {
+                                if(shouldSeekBeforeBuffering) {
+                                    console.log("VIVEK-DBG: Seeking before buffering @ " + video.currentTime)
+                                    return true;
+                                }
+
+                                let bufferLevelToStartSeeking = Math.floor(Math.min(video.duration, (seekPoint + segmentDuration)));
+                                console.log("VIVEK-DBG: Seeking after buffering, waiting for data for position " + bufferLevelToStartSeeking + " seconds @ " + video.currentTime)
+                                return (video.buffered.length > 0 && video.buffered.end(0) >= bufferLevelToStartSeeking);
+                            }, 30000).then(() => {
+                                console.log("VIVEK-DBG: Seeking to " + seekPoint + " seconds @ " + video.currentTime);
+                                let promise = waitForEvent(video, 'seeked', 5000);
+                                video.currentTime = seekPoint;
+                                return promise;
+                            }).then(() => {
+                                console.log("VIVEK-DBG: Seeking completed, @ " + video.currentTime);
+                                console.log("VIVEK-DBG: Waiting for playback to reach the end (" + Math.floor(video.duration) + ") or seekPoint + segmentDuration + 1 seconds (" + (seekPoint + segmentDuration + 1) + ") (whichever is earlier) @ " + video.currentTime)
+                                return waitForCondition(() => ((video.duration - video.currentTime) <= 0.5) || ((video.currentTime - seekPoint) >= (segmentDuration + 1)), 10000);
+                            }).then(() => {
+                                testPassed = true;
+                            }).catch((e) => {
+                                console.log("VIVEK-DBG: Criteria failed, " + e);
+                            }).finally(() => {
+                                cleanup();
+                            });
+                        });
+                    }, true);
+                });
+            }
+        </script>
+    </body>
+</html>

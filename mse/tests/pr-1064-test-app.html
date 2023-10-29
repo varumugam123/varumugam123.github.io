@@ -96,7 +96,7 @@
 
                 function onFeedEnded() {
                     console.log("VIVEK-DBG: All feeders ended");
-                    var pushBufferBeforeSeek = checkProp(searchParams.get("pushBufferBeforeSeek"));
+                    var pushBufferBeforeSeek = checkProp("pushBufferBeforeSeek");
 
                     waitForTime(0)
                     .then(() => {

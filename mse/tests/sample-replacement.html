@@ -58,12 +58,12 @@
                 throw 'No Media Source API available'
             }
 
-            var reenqueueVideoAt = getParamValue(searchParams, 'reenqueueVideoAt')
-            var reenqueueAudioAt = getParamValue(searchParams, 'reenqueueAudioAt')
-            var reenqueueVideo = checkProp(searchParams.get('reenqueueVideo')) || (reenqueueVideoAt != -1)
-            var reenqueueAudio = checkProp(searchParams.get('reenqueueAudio')) || (reenqueueAudioAt != -1)
-            var removeDataOnReenqueue = checkProp(searchParams.get('removeDataOnReenqueue'))
-            var enableAudio = checkProp(searchParams.get('audio')) || reenqueueAudio
+            var reenqueueVideoAt = getParamValue('reenqueueVideoAt')
+            var reenqueueAudioAt = getParamValue('reenqueueAudioAt')
+            var reenqueueVideo = checkProp('reenqueueVideo') || (reenqueueVideoAt != -1)
+            var reenqueueAudio = checkProp('reenqueueAudio') || (reenqueueAudioAt != -1)
+            var removeDataOnReenqueue = checkProp('removeDataOnReenqueue')
+            var enableAudio = checkProp('audio') || reenqueueAudio
 
             if(reenqueueVideoAt != -1 && reenqueueAudioAt == -1)
                 reenqueueAudioAt = reenqueueVideoAt;
@@ -148,7 +148,7 @@
                                 video.timeCheckCounter--;
 
                                 let currentTime = video.currentTime
-                                let reenqueueTime = (isVideo ? (feeders.video ? feeders.video.timeOfReenqueue : 0) : (feeders.audio ? feeders.audio.timeOfReenqueue : 0))
+                                let reenqueueTime = isVideo ? (feeders.video ? feeders.video.timeOfReenqueue : 0) : (feeders.audio ? feeders.audio.timeOfReenqueue : 0)
                                 if(currentTime < reenqueueTime) {
                                     video.ontimeupdate = null
                                     console.log("VIVEK-DBG: Current time " + currentTime + " is less than the time of reenqueue time " + reenqueueTime);

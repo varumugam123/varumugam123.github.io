@@ -1,3 +1,4 @@
+var mediaContent = 'bigbucksbunny';
 let useLocalResources = false;
 
 let videoInitUrls = [
@@ -22,12 +23,4 @@ if (useLocalResources) {
 }
 
 const segmentDuration = 4.0  // seconds
-
-function bufferIndexFromTime(time, segmentDuration = 4) {
-    return Math.floor(time / segmentDuration) + 1;
-}
-
-function urlsThroughNumber(urlTemplate, start, end) {
-    return range(start, end).map((i) => urlTemplate.replace('$Number$', i));
-}
 

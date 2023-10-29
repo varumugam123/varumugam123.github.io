@@ -1,10 +1,11 @@
 var searchParams = (new URL(document.location)).searchParams
-var checkProp = (prop) => { return (prop === 'on' || prop === 'true'); }
-var getParamValue = (searchParam, param) => { let val = parseFloat(searchParam.get(param), 10); return isNaN(val) ? -1 : val; }
+var checkProp = (prop) => { let propVal = searchParams.get(prop); return (propVal === 'on' || propVal === 'true'); }
+var getParamValue = (param) => { let val = parseFloat(searchParams.get(param), 10); return isNaN(val) ? -1 : val; }
 
-var logEvents = checkProp(searchParams.get('logEvents'))
-var moderateTimeupdateLogging = checkProp(searchParams.get('moderateTimeupdateLogging'))
-var cacheMediaBeforeTest = checkProp(searchParams.get('cacheMediaBeforeTest'))
+var logEvents = checkProp('logEvents')
+var moderateTimeupdateLogging = checkProp('moderateTimeupdateLogging')
+var cacheMediaBeforeTest = checkProp('cacheMediaBeforeTest')
+var mediaContent;
 
 var ms = null
 var video = document.querySelector('video')
@@ -155,24 +156,26 @@ function waitForEvent(element, event, duration, errormsg) {
     return wrapper();
 }
 
-// function waitForPromiseSync(promise) {
-//     let wrapper = async () => {
-//         console.log("Before waiting for promise");
-//         let result = await promise.catch((e) => { console.log(e); return false; })
-//         console.log("After waiting for promise");
-//         return result;
-//     };
-//     wrapper();
-// }
-
-function cacheMediaIfRequiredSync() {
+function cacheMediaIfRequiredSync(urlsToCache = []) {
     return new Promise((resolve, reject) => {
         if (Feeder !== undefined && cacheMediaBeforeTest) {
-            let urls = []
-            urls = urls.concat(urlsThroughNumber(videoUrls[0], 0, 5));
-            urls = urls.concat(urlsThroughNumber(audioUrls[0], 0, 5));
+            let urls = urlsToCache
+            if (urls === undefined || urls == null || urls.length == 0) {
+                if (mediaContent !== undefined && mediaContent === 'bigbucksbunny') {
+                    console.log("VIVEK-DBG: Caching big buck bunny media");
+                } else {
+                    console.log("VIVEK-DBG: Caching media was enbaled but no urls provided, skipping caching");
+                    resolve();
+                    return;
+                }
+
+                urls = urls.concat(urlsThroughNumber(videoUrls[0], 0, 5));
+                urls = urls.concat(urlsThroughNumber(audioUrls[0], 0, 5));
+            }
+
             new Feeder(
                 {
+                    isCachingBuffer: true,
                     updating: false,
                     appendBuffer: function (data) { if (this.onupdateend !== undefined && this.onupdateend) { this.onupdateend(); } }
                 },
@@ -204,6 +207,18 @@ function range(start, end) {
         start = 0;
     }
     return rangeImpl(start, end);
+}
+
+function bufferIndexFromTime(time, segmentDuration = 4, segmentsStartFrom = 1) {
+    return Math.floor(time / segmentDuration) + segmentsStartFrom;
+}
+
+function urlsThroughNumber(urlTemplate, start, end) {
+    return range(start, end).map((i) => urlTemplate.replace('$Number$', i));
+}
+
+function nextDivisibleNumber(number, divisor) {
+    return Math.ceil((number - 0.001) / divisor) * divisor;
 }
 
 // Cleanup functions

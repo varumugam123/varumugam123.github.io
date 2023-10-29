@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MSE Demo</title>
+</head>
+<body>
+    <h1>MSE Demo</h1>
+    <div>
+        <video controls width="80%" autoplay muted="muted"></video>
+    </div>
+
+    <script type="text/javascript">
+        (function() {
+            var baseUrl = 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/video/720_2400000/dash/';
+            var initUrl = baseUrl + 'init.mp4';
+            var templateUrl = baseUrl + 'segment_$Number$.m4s';
+            var sourceBuffer;
+            var index = 0;
+            var numberOfChunks = 52;
+            var video = document.querySelector('video');
+
+            var searchParams = (new URL(document.location)).searchParams
+            var checkProp = (prop) => { let propVal = searchParams.get(prop); return (propVal === 'on' || propVal === 'true'); }
+            var shouldSeekBeforeBuffering = checkProp('seekBeforeBuffering')
+
+            if (!window.MediaSource) {
+                console.error('No Media Source API available');
+                return;
+            }
+
+            var ms = new MediaSource();
+            video.src = window.URL.createObjectURL(ms);
+            ms.addEventListener('sourceopen', onMediaSourceOpen);
+
+            if (video !== undefined && video != null) {
+                var events = ["abort", "canplay", "canplaythrough", "durationchange", "emptied", "ended",
+                    "error", "loadeddata", "loadedmetadata", "loadstart", "pause", "play", "playing", "progress",
+                    "ratechange", "seeked", "seeking", "stalled", "suspend", "volumechange", "waiting"];
+
+                function eventHandler(event) {
+                    console.log("Got event : " + event.type);
+                };
+
+                events.forEach(function (eventName) {
+                    video.addEventListener(eventName, eventHandler);
+                });
+            }
+
+            video.addEventListener('playing', function installSeekHook() {
+                video.removeEventListener('playing', installSeekHook);
+
+                let seekAfter = Math.floor(video.duration / 4);
+                let seekPoint = video.duration - seekAfter; // seek to 3/4 of the video
+
+                if(shouldSeekBeforeBuffering)
+                    seekAfter = 0;
+
+                setTimeout(function () {
+                    console.log(`Skip video from ${video.currentTime} to ${seekPoint} seconds`);
+                    video.currentTime = seekPoint;
+                }, seekAfter * 1000);
+            });
+
+            function onMediaSourceOpen() {
+                ms.duration = 30;
+
+                sourceBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.4d401f"');
+                sourceBuffer.addEventListener('updateend', nextSegment);
+
+                GET(initUrl, appendToBuffer);
+
+                video.play();
+            }
+
+            function nextSegment() {
+                let bufferedEnd = video.buffered.length > 0 ? video.buffered.end(0) : 0
+                if (index > numberOfChunks || bufferedEnd >= video.duration) {
+                    sourceBuffer.removeEventListener('updateend', nextSegment);
+                    ms.endOfStream();
+                    return;
+                }
+
+                var url = templateUrl.replace('$Number$', index);
+                GET(url, appendToBuffer);
+                index++;
+            }
+
+            function appendToBuffer(videoChunk) {
+                if (videoChunk)
+                    sourceBuffer.appendBuffer(new Uint8Array(videoChunk));
+            }
+
+            function GET(url, callback) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', url);
+                xhr.responseType = 'arraybuffer';
+
+                xhr.onload = function(e) {
+                    if (xhr.status != 200) {
+                        console.warn('Unexpected status code ' + xhr.status + ' for ' + url);
+                        return false;
+                    }
+                    callback(xhr.response);
+                };
+
+                xhr.send();
+            }
+        })();
+    </script>
+</body>
+</html>
