@@ -10,12 +10,57 @@ var mediaContent;
 var ms = null
 var video = document.querySelector('video')
 
+class Logger {
+    constructor(logger = console.log) {
+        this.logger = logger;
+        this.prefix = "VIVEK-DBG: ";
+        this.enableTimeTag = true;
+    }
+
+    setPrefix(prefix = "") {
+        this.prefix = prefix;
+    }
+
+    tagTime(enable) {
+        this.enableTimeTag = enable;
+    }
+
+    log(msg) {
+        if (this.prefix !== undefined && this.prefix)
+            msg = this.prefix + msg;
+
+        if (this.enableTimeTag) {
+            let fixWidth = (input, length, padding) => {
+                padding = String(padding || "0");
+                return (padding.repeat(length) + input).slice(-length);
+            }
+
+            let date = new Date();
+
+            msg = `[${fixWidth(date.getUTCHours(), 2, 0)}:${fixWidth(date.getUTCMinutes(), 2, 0)}:${fixWidth(date.getUTCSeconds(), 2, 0)}:${fixWidth(date.getUTCMilliseconds(), 3, 0)}] ${msg}`;
+        }
+
+        this.logger(msg);
+
+        return msg;
+    }
+}
+
+var myLogger = new Logger();
+
+function logMsg(msg) {
+    if (myLogger)
+        myLogger.log(msg);
+    else
+        console.log("VIVEK-DBG: " + msg);
+}
+
 if (window.checkTestCaseAPI) {
     checkTestCaseAPI();
 } else {
-    console.log("VIVEK-DBG: checkTestCaseAPI() is not found, running in Non-RDK browser");
-    function reportFail(status, msg) { console.log("VIVEK-DBG: " + ((msg === undefined) ? "Success" : msg)); }
-    function reportPass(status, msg) { console.log("VIVEK-DBG: " + ((msg === undefined) ? "Success" : msg)); }
+    logMsg("checkTestCaseAPI() is not found, running in Non-RDK browser");
+    function reportFail(status, msg) { logMsg(((msg === undefined) ? "Success" : msg)); }
+    function reportPass(status, msg) { logMsg(((msg === undefined) ? "Success" : msg)); }
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -29,13 +74,13 @@ function initApp() {
         video.genericEventHandler = (e) => {
             lastLoggedEvent = e.name;
             if (logEvents)
-                console.log("VIVEK-DBG: Received event: " + e.type + " @ " + video.currentTime);
+                logMsg("Received event: " + e.type + " @ " + video.currentTime);
         }
         video.timeUpdateEventHandler = (e) => {
             if (moderateTimeupdateLogging ? ((lastLoggedEvent != 'timeupdate') || ((video.currentTime - lastLoggedTime) >= 1)) : true) {
                 lastLoggedEvent = 'timeupdate';
                 lastLoggedTime = video.currentTime
-                console.log("VIVEK-DBG: Received event: timeupdate @ " + lastLoggedTime);
+                logMsg("Received event: timeupdate @ " + lastLoggedTime);
             }
         }
 
@@ -55,7 +100,7 @@ function initApp() {
 
     cacheMediaIfRequiredSync().then(() => {
         ms = new MediaSource()
-        waitForEvent(ms, 'sourceopen', 10000).then(onSourceOpen).catch((e) => { console.log("VIVEK-DBG: Failed to open MediaSource, " + e); });
+        waitForEvent(ms, 'sourceopen', 10000).then(onSourceOpen).catch((e) => { logMsg("Failed to open MediaSource, " + e); });
 
         video.installEventHandlers();
         video.src = window.URL.createObjectURL(ms)
@@ -94,12 +139,46 @@ function scheduleTask(t, delay) {
     return wrapper();
 }
 
+class InterruptablePromise {
+    constructor(handler, cleanupFunction) {
+        this.promise = new Promise((resolve, reject) => {
+            this.forceResolve = (args) => {
+                if (cleanupFunction !== undefined && cleanupFunction)
+                    cleanupFunction();
+                resolve(args);
+            };
+
+            this.forceReject = (args) => {
+                if (cleanupFunction !== undefined && cleanupFunction)
+                    cleanupFunction();
+                reject(args);
+            };
+
+            handler(resolve, reject);
+        });
+    }
+
+    then(onResolve, onReject) {
+        return this.promise.then(onResolve, onReject);
+    }
+
+    catch(onReject) {
+        return this.promise.catch(onReject);
+    }
+
+    finally(onFinally) {
+        return this.promise.finally(onFinally);
+    }
+}
+
 function waitForTime(delay) {
     let wrapper = () => {
-        return new Promise((resolve, reject) => {
-            scheduleTask(resolve, delay);
-        });
+        let id = -1;
+        return new InterruptablePromise((resolve, reject) => {
+            id = scheduleTask(resolve, delay);
+        }, () => { clearTimer(id); });
     };
+
     return wrapper();
 }
 
@@ -107,8 +186,9 @@ function waitForCondition(condition, duration, reason) {
     let wrapper = () => {
         let timeout = duration
         let predicate = condition
+        let id = -1
 
-        return new Promise((resolve, reject) => {
+        return new InterruptablePromise((resolve, reject) => {
             var checkCondition = () => {
                 if (predicate()) {
                     resolve();
@@ -120,13 +200,14 @@ function waitForCondition(condition, duration, reason) {
                 } else {
                     let delay = timeout > 1000 ? 1000 : timeout;
                     timeout -= delay;
-                    scheduleTask(checkCondition, delay);
+                    id = scheduleTask(checkCondition, delay);
                 }
             }
 
             checkCondition();
-        });
+        }, () => { clearTimer(id); });
     };
+
     return wrapper();
 }
 
@@ -134,37 +215,135 @@ function waitForEvent(element, event, duration, errormsg) {
     let wrapper = () => {
         let id = -1
         let timeout = duration
-        return new Promise((resolve, reject) => {
-            let onEvent = function () {
-                clearTimer(id)
-                element.removeEventListener(event, onEvent)
+        let eventHandler = null
+
+        function cleanUp() {
+            clearTimer(id)
+            element.removeEventListener(event, eventHandler)
+        }
+
+        return new InterruptablePromise((resolve, reject) => {
+            eventHandler = function onEvent() {
+                cleanUp();
                 resolve();
             }
 
-            element.addEventListener(event, onEvent)
+            element.addEventListener(event, eventHandler)
 
             if (timeout <= 0) {
                 reject(errormsg === undefined ? ("Timeout waiting for event " + event) : errormsg);
             } else {
                 id = scheduleTask(() => {
-                    element.removeEventListener(event, onEvent)
+                    cleanUp();
                     reject(errormsg === undefined ? ("Timeout waiting for event " + event) : errormsg);
                 }, timeout);
             }
-        });
+        }, () => { cleanUp(); });
     };
+
+    return wrapper();
+}
+
+function monitorTimePolling(expectedTime, interval, counter, timeStepFunction, breakerFunction, reason) {
+    let wrapper = () => {
+        let expected = expectedTime;
+        let count = counter;
+        let id = -1;
+        let delay = interval;
+
+        return new InterruptablePromise((resolve, reject) => {
+            let checkTime = () => {
+                if (breakerFunction !== undefined && breakerFunction && breakerFunction()) {
+                    clearTimer(id);
+                    resolve("Breaker function returned true");
+                    return;
+                }
+
+                let currentTime = video.currentTime
+                if (currentTime >= expected || (expected - currentTime) < 0.066) {
+                    if (count > 0) {
+                        count--;
+
+                        if (timeStepFunction !== undefined && timeStepFunction)
+                            expected = currentTime + timeStepFunction();
+
+                        id = scheduleTask(checkTime, delay);
+                    } else {
+                        clearTimer(id);
+                        resolve();
+                    }
+                    return;
+                }
+
+                clearTimer(id);
+                reject(reason ? reason : ("Timeout waiting for time " + expected + ", monitorTime failed @ count " + count + ", current time " + currentTime));
+            }
+
+            checkTime();
+        });
+    }
+
+    return wrapper();
+}
+
+function monitorTimeOnUpdateEvent(element, expectedTime, counter, timeStepFunction, breakerFunction, reason) {
+    let wrapper = () => {
+        let expected = expectedTime;
+        let count = counter;
+        let id = -1;
+
+        return new InterruptablePromise((resolve, reject) => {
+            let checkTime = () => {
+                if (breakerFunction !== undefined && breakerFunction()) {
+                    cleanUp();
+                    resolve("Breaker function returned true");
+                    return;
+                }
+
+                let currentTime = video.currentTime
+                if (currentTime >= expected || (expected - currentTime) <= 0.066) {
+                    if (count > 0) {
+                        count--;
+
+                        if (timeStepFunction !== undefined && timeStepFunction)
+                            expected = currentTime + timeStepFunction();
+                    } else {
+                        cleanUp(id);
+                        resolve();
+                    }
+                    return;
+                }
+
+                cleanUp();
+                reject(reason ? reason : ("Timeout waiting for time " + expected + ", monitorTime failed @ count " + count + ", current time " + currentTime));
+            }
+
+            function cleanUp() {
+                element.removeEventListener('timeupdate', checkTime);
+                clearTimer(id);
+            }
+
+            id = waitForEvent(element, 'timeupdate', 10000, "Failed to receive timeupdate event").catch(() => {
+                cleanUp();
+                reject("Failed to receive timeupdate event");
+            });
+
+            element.addEventListener('timeupdate', checkTime);
+        });
+    }
+
     return wrapper();
 }
 
 function cacheMediaIfRequiredSync(urlsToCache = []) {
-    return new Promise((resolve, reject) => {
+    return new InterruptablePromise((resolve, reject) => {
         if (Feeder !== undefined && cacheMediaBeforeTest) {
             let urls = urlsToCache
             if (urls === undefined || urls == null || urls.length == 0) {
                 if (mediaContent !== undefined && mediaContent === 'bigbucksbunny') {
-                    console.log("VIVEK-DBG: Caching big buck bunny media");
+                    logMsg("Caching big buck bunny media");
                 } else {
-                    console.log("VIVEK-DBG: Caching media was enbaled but no urls provided, skipping caching");
+                    logMsg("Caching media was enbaled but no urls provided, skipping caching");
                     resolve();
                     return;
                 }
@@ -180,7 +359,7 @@ function cacheMediaIfRequiredSync(urlsToCache = []) {
                     appendBuffer: function (data) { if (this.onupdateend !== undefined && this.onupdateend) { this.onupdateend(); } }
                 },
                 urls, () => {
-                    console.log("VIVEK-DBG: Cached media");
+                    logMsg("Cached media");
                     resolve();
                 }, null, 1);
         } else {
@@ -191,7 +370,7 @@ function cacheMediaIfRequiredSync(urlsToCache = []) {
 
 function logSourceBufferInfo(buffer, video) {
     for (let i = 0; i < buffer.buffered.length; ++i) {
-        console.log("VIVEK-DBG: " + (video ? "Video" : "Audio") + " Buffer info: " + i + ", [" + buffer.buffered.start(i) + " - " + buffer.buffered.end(i) + "]");
+        logMsg((video ? "Video" : "Audio") + " Buffer info: " + i + ", [" + buffer.buffered.start(i) + " - " + buffer.buffered.end(i) + "]");
     }
 }
 
@@ -233,6 +412,5 @@ function performCommonCleanup() {
     waitForTime(3000).then(() => {
         video.src = ''
         video.remove()
-    }).catch((e) => { console.log("VIVEK-DBG: Failed to remove video, " + e); });
+    }).catch((e) => { logMsg("Failed to remove video, " + e); });
 }
-

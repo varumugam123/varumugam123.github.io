@@ -1,4 +1,16 @@
-<!DOCTYPE html>
+<!--
+    Usage:
+    logEvents=true // log video element events
+    moderateTimeUpdateEvents=true // moderate timeupdate events
+
+    pr-1064-test-app.html?logEvents=true
+    pr-1064-test-app.html?playBeforeSeeking=true&pushBufferBeforeSeek=true
+    pr-1064-test-app.html?playBeforeSeeking=true&pushBufferBeforeSeek=false
+    pr-1064-test-app.html?playBeforeSeeking=false&pushBufferBeforeSeek=true
+    pr-1064-test-app.html?playBeforeSeeking=false&pushBufferBeforeSeek=false
+ -->
+
+ <!DOCTYPE html>
 <html>
     <head>
         <meta charset='UTF-8' />
@@ -70,7 +82,7 @@
                     }
                 }
 
-                // console.log(statsMessage)
+                // logMsg(statsMessage)
                 document.querySelector('#stats').innerHTML = statsMessage
             }
 
@@ -95,24 +107,25 @@
                 ms.duration = 8
 
                 function onFeedEnded() {
-                    console.log("VIVEK-DBG: All feeders ended");
-                    var pushBufferBeforeSeek = checkProp("pushBufferBeforeSeek");
+                    logMsg("All feeders ended");
+                    const pushBufferBeforeSeek = checkProp("pushBufferBeforeSeek");
+                    const playBeforeSeeking = checkProp("playBeforeSeeking");
 
                     waitForTime(0)
                     .then(() => {
-                        console.log("VIVEK-DBG: Starting playback from 6");
+                        logMsg("Starting playback from 6");
                         let promise = waitForEvent(video, 'seeked', 1000)
                         video.currentTime = 6
                         return promise;
                     }).then(() => {
-                        console.log("VIVEK-DBG: Received seeking event, currentTime=" + video.currentTime);
+                        logMsg("Received seeking event, currentTime=" + video.currentTime);
                         if(video.currentTime < 6)
                             throw "Video is seeked to 6, but currentTime is less than 6";
 
                         return waitForTime(1000);
                     }).then(() => {
                         video.pause();
-                        console.log("VIVEK-DBG: Set video to pause, currentTime=" + video.currentTime);
+                        logMsg("Set video to pause, currentTime=" + video.currentTime);
                     }).then(() => {
                         return waitForTime(1000);
                     }).then(() => {
@@ -123,43 +136,54 @@
                     }).then(() => {
                         return waitForTime(2000)
                     }).then(() => {
-                        console.log("VIVEK-DBG: Removed data {0,8} from sourceBuffer");
+                        logMsg("Removed data {0,8} from sourceBuffer");
                         updateStats();
-                        video.play();
-                        console.log("VIVEK-DBG: Set video to play, currentTime=" + video.currentTime);
-                    }).then(() => {
-                        return waitForTime(2000)
+
+                        let play = () => {
+                            video.play();
+                            logMsg("Set video to play, currentTime=" + video.currentTime);
+                        }
+
+                        if(playBeforeSeeking) {
+                            play();
+                            return waitForTime(500);
+                        } else {
+                            video.onseeking = () => {
+                                video.onseeking = null;
+                                play();
+                            }
+                        }
                     }).then(() => {
                         let promise = waitForEvent(video, 'seeked', 5000);
                         if(pushBufferBeforeSeek) {
-                            console.log("VIVEK-DBG: Pushing data {0,4} to sourceBuffer, before seeking to 1");
+                            logMsg("Pushing data {0,4} to sourceBuffer, before seeking to 1");
                             feeders.video = new Feeder(feeders.video.sourceBuffer, urlsThroughNumber(videoUrls[0], 1, 1), () => {
                                 logAllSourceBufferInfo();
                                 video.currentTime = 1;
                             }, null, true);
                         } else {
-                            console.log("VIVEK-DBG: Seeking to 1 and then pushing data {0,4} to sourceBuffer on reception of 'seeking' event");
+                            logMsg("Seeking to 1 and then pushing data {0,4} to sourceBuffer on reception of 'seeking' event");
                             waitForEvent(video, 'seeking', 1000).then(() => {
-                                console.log("VIVEK-DBG: Received seeking event, currentTime=" + video.currentTime);
+                                logMsg("Received seeking event, currentTime=" + video.currentTime);
                                 feeders.video = new Feeder(feeders.video.sourceBuffer, urlsThroughNumber(videoUrls[0], 1, 1), () => {
                                     logAllSourceBufferInfo();
                                 }, null, true);
                             }).catch((error) => {
-                                console.log("VIVEK-DBG: " + error);
+                                logMsg(error);
                                 cleanup();
                             });
                             video.currentTime = 1
                         }
                         return promise;
                     }).then(() => {
-                        console.log("VIVEK-DBG: Received seeked event, currentTime=" + video.currentTime);
+                        logMsg("Received seeked event, currentTime=" + video.currentTime);
                         return waitForCondition(() => {return video.currentTime >= 3}, 5000, "Video didn't play from 1 to 3")
                     }).then(() => {
                         testPassed = true;
-                        console.log("VIVEK-DBG: Test completed successfully");
+                        logMsg("Test completed successfully");
                         cleanup();
                     }).catch((error) => {
-                        console.log("VIVEK-DBG: " + error);
+                        logMsg(error);
                         cleanup();
                     });
                 }

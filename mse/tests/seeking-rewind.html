@@ -1,4 +1,15 @@
-<!DOCTYPE html>
+<!--
+    Usage:
+    logEvents=true // log video element events
+    moderateTimeUpdateEvents=true // moderate timeupdate events
+
+    seeking-rewind.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=true
+    seeking-rewind.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=false
+    seeking-rewind.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=true
+    seeking-rewind.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=false
+ -->
+
+ <!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset='UTF-8' />
@@ -95,7 +106,7 @@
 
                     feeders.video = new Feeder(videoBuffer, urls, () => {
                         if(video.buffered.length > 0) {
-                            console.log("VIVEK-DBG: Performing initial forward seek to " + (video.buffered.start(0) + 0.5) + " seconds @ " + video.currentTime);
+                            logMsg("Performing initial forward seek to " + (video.buffered.start(0) + 0.5) + " seconds @ " + video.currentTime);
 
                             var seekPoint = segmentDuration + ((segmentDuration / 8) * (seekCloseToStartOfSegment ? 1 : -1));
                             waitForEvent(video, 'seeked', 1000).then(() => {
@@ -103,10 +114,10 @@
                             }).then(() => {
                                 return waitForTime(1000);
                             }).then(() => {
-                                console.log(`VIVEK-DBG: Would be seeking to ${seekPoint} seconds @ ${video.currentTime}`);
+                                logMsg(`Would be seeking to ${seekPoint} seconds @ ${video.currentTime}`);
 
                                 let feedDataForSeekPoint = (seekPoint, handleDataFeedComplete = null) => {
-                                    console.log("VIVEK-DBG: Feeding data for seek point " + seekPoint + " seconds @ " + video.currentTime)
+                                    logMsg("Feeding data for seek point " + seekPoint + " seconds @ " + video.currentTime)
                                     let seekPointIndex = bufferIndexFromTime(seekPoint, segmentDuration, 0);
                                     let bufferedTimePointIndex = bufferIndexFromTime(video.buffered.start(0), segmentDuration, 0);
                                     let urlsToLoad = urlsThroughNumber(segmentUrl, seekPointIndex, bufferedTimePointIndex - 1);
@@ -114,36 +125,48 @@
                                 }
 
                                 if (shouldSeekBeforeBuffering) {
-                                    console.log("VIVEK-DBG: Seeking before buffering @ " + video.currentTime)
+                                    logMsg("Seeking before buffering @ " + video.currentTime)
                                     scheduleTask(() => { feedDataForSeekPoint(seekPoint); }, 1500);
                                 } else {
                                     feedDataForSeekPoint(seekPoint);
                                     return waitForCondition(() => {
                                         let bufferLevelToStartSeeking = Math.floor(Math.min(video.duration, (seekPoint + segmentDuration)));
-                                        console.log("VIVEK-DBG: Seeking after buffering, waiting for data for position " + bufferLevelToStartSeeking + " seconds @ " + video.currentTime)
+                                        logMsg("Seeking after buffering, waiting for data for position " + bufferLevelToStartSeeking + " seconds @ " + video.currentTime)
                                         return (video.buffered.length > 0 && video.buffered.start(0) <= seekPoint && video.buffered.end(0) >= bufferLevelToStartSeeking);
                                     }, 30000);
                                 }
                             }).then(() => {
-                                console.log("VIVEK-DBG: Seeking to " + seekPoint + " seconds @ " + video.currentTime);
-                                let promise = waitForEvent(video, 'seeked', 10000);
+                                logMsg("Seeking to " + seekPoint + " seconds @ " + video.currentTime);
+                                let seekedPromise = waitForEvent(video, 'seeked', 10000);
+
+                                let timeMonitorPromise = waitForEvent(video, 'seeking', 3000).then(() => {
+                                    let interval = 50; //milliseconds
+                                    let duration = 10 * 1000 //milliseconds
+                                    let count = duration / interval;
+                                    return monitorTimePolling(seekPoint, interval, count,
+                                        () => { return video.seeking ? 0 : (interval / 1000); },
+                                        () => { return video.currentTime >= seekPoint + 1; }
+                                    );
+                                });
+
                                 video.currentTime = seekPoint;
-                                return promise;
+
+                                return Promise.all([seekedPromise, timeMonitorPromise]);
                             }).then(() => {
-                                console.log("VIVEK-DBG: Seeking completed, @ " + video.currentTime);
-                                console.log("VIVEK-DBG: Waiting for playback to reach the end (" + Math.floor(video.duration) + ") or seekPoint + segmentDuration + 1 seconds (" + (seekPoint + segmentDuration + 1) + ") (whichever is earlier) @ " + video.currentTime)
+                                logMsg("Seeking completed, @ " + video.currentTime);
+                                logMsg("Waiting for playback to reach the end (" + Math.floor(video.duration) + ") or seekPoint + segmentDuration + 1 seconds (" + (seekPoint + segmentDuration + 1) + ") (whichever is earlier) @ " + video.currentTime)
                                 return waitForCondition(() => ((video.duration - video.currentTime) <= 0.5) || ((video.currentTime - seekPoint) >= (segmentDuration + 1)), 10000);
                             }).then(() => {
                                 testPassed = true;
                             }).catch((e) => {
-                                console.log("VIVEK-DBG: Criteria failed, " + e);
+                                logMsg("Criteria failed, " + e);
                             }).finally(() => {
                                 cleanup();
                             });
 
                             video.currentTime = video.buffered.start(0) + 0.5;
                         } else {
-                            console.log("VIVEK-DBG: No data available to perform initial forward seek, stopping test");
+                            logMsg("No data available to perform initial forward seek, stopping test");
                             cleanup();
                         }
                     }, null, true);

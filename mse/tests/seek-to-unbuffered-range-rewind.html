@@ -1,3 +1,11 @@
+<!--
+    Usage:
+    logEvents=true // log video element events
+    moderateTimeUpdateEvents=true // moderate timeupdate events
+
+    seek-to-unbuffered-range-rewind.html
+-->
+
 <!DOCTYPE html>
 <html>
     <head>
@@ -82,19 +90,19 @@
                 for (let key in feeders)
                     if (feeders.hasOwnProperty(key) && feeders[key] && !(feeders[key].ended))
                         return
-                console.log("VIVEK-DBG: All feeders ended");
+                logMsg("All feeders ended");
 
                 waitForCondition(checkForPlaying, 500, "Video is not playing after seeking to 0.25").then(() => {
-                    console.log("VIVEK-DBG: Video is playing, currentTime=" + video.currentTime);
+                    logMsg("Video is playing, currentTime=" + video.currentTime);
                     return waitForCondition(function () {
                                 return (video.currentTime >= 5);
                             }, ((10 - video.currentTime) * 1000) + 1000, "Video is not reached to end of the video");
                 }).then(() => {
                     testPassed = true;
-                    console.log("VIVEK-DBG: Test completed successfully");
+                    logMsg("Test completed successfully");
                     cleanup();
                 }).catch((error) => {
-                    console.log("VIVEK-DBG: " + error + ", currentTime=" + video.currentTime);
+                    logMsg("" + error + ", currentTime=" + video.currentTime);
                     cleanup();
                 });
             }
@@ -112,7 +120,7 @@
                     let seekPosition = video.buffered.start(0) + 0.5;
 
                     waitForEvent(video, 'seeked', 2500).then(() => {
-                        console.log("VIVEK-DBG: Video started playing, currentTime=" + video.currentTime);
+                        logMsg("Video started playing, currentTime=" + video.currentTime);
                         if(video.currentTime < seekPosition)
                             throw ("Video is seeked to " + seekPosition + ", but currentTime is less than " + seekPosition);
 
@@ -120,21 +128,21 @@
                         video.addEventListener('timeupdate', function onTimeUpdate() {
                             if (video.currentTime >= 15.5) {
                                 video.removeEventListener('timeupdate', onTimeUpdate);
-                                console.log("VIVEK-DBG: Rewinding to 0.25, for which no data is pushed yet");
+                                logMsg("Rewinding to 0.25, for which no data is pushed yet");
                                 video.currentTime = 0.25;
 
                                 feeders.video = null;
                                 waitForEvent(video, 'seeking', 1000).then(() => {
-                                    console.log("VIVEK-DBG: Received seeking event and attached feeder, currentTime=" + video.currentTime);
+                                    logMsg("Received seeking event and attached feeder, currentTime=" + video.currentTime);
                                     feeders.video = new Feeder(videoBuffer, urlsThroughNumber(videoUrls[0], 1, 3), onFeedEnded, null, true);
                                 }).catch(() => {
-                                    console.log("VIVEK-DBG: Seeking event is not received, currentTime=" + video.currentTime);
+                                    logMsg("Seeking event is not received, currentTime=" + video.currentTime);
                                     cleanup();
                                 });
                             }
                         })
                     }).catch((error) => {
-                        console.log("VIVEK-DBG: " + error);
+                        logMsg(error);
                         cleanup();
                     });
 

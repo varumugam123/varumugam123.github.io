@@ -1,4 +1,15 @@
-<!DOCTYPE html>
+<!--
+    Usage:
+    logEvents=true // log video element events
+    moderateTimeUpdateEvents=true // moderate timeupdate events
+
+    seeking-forward.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=true
+    seeking-forward.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=false
+    seeking-forward.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=true
+    seeking-forward.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=false
+ -->
+
+ <!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset='UTF-8' />
@@ -97,30 +108,42 @@
                         feeders.video.appendComplete = null;
                         waitForEvent(video, 'playing', 10000).then(() => {
                             let seekPoint = nextDivisibleNumber((video.duration - (video.duration / 4)), segmentDuration) + ((segmentDuration / 8) * (seekCloseToStartOfSegment ? 1 : -1));
-                            console.log(`VIVEK-DBG: Would be seeking to ${seekPoint} seconds @ ${video.currentTime}`);
+                            logMsg(`Would be seeking to ${seekPoint} seconds @ ${video.currentTime}`);
 
                             waitForCondition(() => {
                                 if(shouldSeekBeforeBuffering) {
-                                    console.log("VIVEK-DBG: Seeking before buffering @ " + video.currentTime)
+                                    logMsg("Seeking before buffering @ " + video.currentTime)
                                     return true;
                                 }
 
                                 let bufferLevelToStartSeeking = Math.floor(Math.min(video.duration, (seekPoint + segmentDuration)));
-                                console.log("VIVEK-DBG: Seeking after buffering, waiting for data for position " + bufferLevelToStartSeeking + " seconds @ " + video.currentTime)
+                                logMsg("Seeking after buffering, waiting for data for position " + bufferLevelToStartSeeking + " seconds @ " + video.currentTime)
                                 return (video.buffered.length > 0 && video.buffered.end(0) >= bufferLevelToStartSeeking);
                             }, 30000).then(() => {
-                                console.log("VIVEK-DBG: Seeking to " + seekPoint + " seconds @ " + video.currentTime);
-                                let promise = waitForEvent(video, 'seeked', 5000);
+                                logMsg("Seeking to " + seekPoint + " seconds @ " + video.currentTime);
+                                let seekedPromise = waitForEvent(video, 'seeked', 5000);
+
+                                let timeMonitorPromise = waitForEvent(video, 'seeking', 3000).then(() => {
+                                    let interval = 50; //milliseconds
+                                    let duration = 10 * 1000 //milliseconds
+                                    let count = duration / interval;
+                                    return monitorTimePolling(seekPoint, interval, count,
+                                        () => { return video.seeking ? 0 : (interval / 1000); },
+                                        () => { return video.currentTime >= seekPoint + 1; }
+                                    );
+                                });
+
                                 video.currentTime = seekPoint;
-                                return promise;
+
+                                return Promise.all([seekedPromise, timeMonitorPromise]);
                             }).then(() => {
-                                console.log("VIVEK-DBG: Seeking completed, @ " + video.currentTime);
-                                console.log("VIVEK-DBG: Waiting for playback to reach the end (" + Math.floor(video.duration) + ") or seekPoint + segmentDuration + 1 seconds (" + (seekPoint + segmentDuration + 1) + ") (whichever is earlier) @ " + video.currentTime)
+                                logMsg("Seeking completed, @ " + video.currentTime);
+                                logMsg("Waiting for playback to reach the end (" + Math.floor(video.duration) + ") or seekPoint + segmentDuration + 1 seconds (" + (seekPoint + segmentDuration + 1) + ") (whichever is earlier) @ " + video.currentTime)
                                 return waitForCondition(() => ((video.duration - video.currentTime) <= 0.5) || ((video.currentTime - seekPoint) >= (segmentDuration + 1)), 10000);
                             }).then(() => {
                                 testPassed = true;
                             }).catch((e) => {
-                                console.log("VIVEK-DBG: Criteria failed, " + e);
+                                logMsg("Criteria failed, " + e);
                             }).finally(() => {
                                 cleanup();
                             });

@@ -22,7 +22,7 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
         }
 
         if (this.fetchindex == this.urls.length) {
-            console.log("VIVEK-DBG: All " + (isVideo ? "video" : "audio") + " buffers are processed");
+            logMsg("All " + (isVideo ? "video" : "audio") + " buffers are processed");
             this.ended = true
             this.xhr = undefined
             this.endedCb()
@@ -36,10 +36,10 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
     this.appendToBuffer = function (videoChunk, url) {
         try {
             if (this.sourceBuffer !== undefined && this.sourceBuffer) {
-                console.log('VIVEK-DBG: ' + (sourceBuffer.isCachingBuffer ? "caching: " : "append: ") + url)
+                logMsg((sourceBuffer.isCachingBuffer ? "caching: " : "append: ") + url)
                 this.sourceBuffer.appendBuffer(new Uint8Array(videoChunk))
             } else {
-                console.log('VIVEK-DBG: simulate append: ' + url)
+                logMsg('simulate append: ' + url)
                 this.onUpdateEnd(null)
             }
         } catch (e) {
@@ -56,7 +56,7 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
             return;
         }
 
-        console.log('VIVEK-DBG: fetch: ' + url)
+        logMsg('fetch: ' + url)
         var xhr = new XMLHttpRequest()
         xhr.open('GET', url)
         xhr.responseType = 'arraybuffer'

@@ -23,4 +23,3 @@ if (useLocalResources) {
 }
 
 const segmentDuration = 4.0  // seconds
-

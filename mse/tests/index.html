@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset='UTF-8' />
+        <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate' />
+        <meta http-equiv='Pragma' content='no-cache' />
+        <meta http-equiv='Expires' content='0' />
+        <title>MSE Test</title>
+
+        <style>
+        video {
+            width: 100%;
+            height: 100%;
+        }
+        body {
+            margin:0;
+            padding:0;
+            background-color:transparent;
+            overflow: hidden;
+        }
+        #tests div {
+            padding-left: 25px;
+        }
+        </style>
+    </head>
+
+    <body>
+        <div id="tests">
+            <div><a href='./audio-switch.html'>audio-switch.html</a></div>
+            <hr>
+            <div><a href='./pr-1064-test-app.html?logEvents=true'>pr-1064-test-app.html?logEvents=true</a></div>
+            <div><a href='./pr-1064-test-app.html?playBeforeSeeking=true&pushBufferBeforeSeek=true'>pr-1064-test-app.html?playBeforeSeeking=true&pushBufferBeforeSeek=true</a></div>
+            <div><a href='./pr-1064-test-app.html?playBeforeSeeking=true&pushBufferBeforeSeek=false'>pr-1064-test-app.html?playBeforeSeeking=true&pushBufferBeforeSeek=false</a></div>
+            <div><a href='./pr-1064-test-app.html?playBeforeSeeking=false&pushBufferBeforeSeek=true'>pr-1064-test-app.html?playBeforeSeeking=false&pushBufferBeforeSeek=true</a></div>
+            <div><a href='./pr-1064-test-app.html?playBeforeSeeking=false&pushBufferBeforeSeek=false'>pr-1064-test-app.html?playBeforeSeeking=false&pushBufferBeforeSeek=false</a></div>
+            <hr>
+            <div><a href='./sample-replacement.html?reenqueueVideo=true'>sample-replacement.html?reenqueueVideo=true</a></div>
+            <div><a href='./sample-replacement.html?reenqueueVideoAt=5'>sample-replacement.html?reenqueueVideoAt=5</a></div>
+            <div><a href='./sample-replacement.html?reenqueueVideoAt=5&removeDataOnReenqueue=true'>sample-replacement.html?reenqueueVideoAt=5&removeDataOnReenqueue=true</a></div>
+            <div><a href='./sample-replacement.html?audio=true&reenqueueVideo=true&reenqueueVideoAt=5'>sample-replacement.html?audio=true&reenqueueVideo=true&reenqueueVideoAt=5</a></div>
+            <div><a href='./sample-replacement.html?reenqueueVideoAt=5&reenqueueAudioAt=3'>sample-replacement.html?reenqueueVideoAt=5&reenqueueAudioAt=3</a></div>
+            <div><a href='./sample-replacement.html?reenqueueVideoAt=5&reenqueueAudioAt=3&removeDataOnReenqueue=true'>sample-replacement.html?reenqueueVideoAt=5&reenqueueAudioAt=3&removeDataOnReenqueue=true</a></div>
+            <div><a href='./sample-replacement.html?reenqueueVideoAt=3&reenqueueAudioAt=5&removeDataOnReenqueue=true'>sample-replacement.html?reenqueueVideoAt=3&reenqueueAudioAt=5&removeDataOnReenqueue=true</a></div>
+            <div><a href='./sample-replacement.html?reenqueueVideoAt=3&reenqueueAudioAt=3'>sample-replacement.html?reenqueueVideoAt=3&reenqueueAudioAt=3</a></div>
+            <div><a href='./sample-replacement.html?reenqueueVideoAt=3&reenqueueAudioAt=3&removeDataOnReenqueue=true'>sample-replacement.html?reenqueueVideoAt=3&reenqueueAudioAt=3&removeDataOnReenqueue=true</a></div>
+            <hr>
+            <div><a href='./seeking-forward.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=true'>seeking-forward.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=true</a></div>
+            <div><a href='./seeking-forward.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=false'>seeking-forward.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=false</a></div>
+            <div><a href='./seeking-forward.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=true'>seeking-forward.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=true</a></div>
+            <div><a href='./seeking-forward.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=false'>seeking-forward.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=false</a></div>
+            <hr>
+            <div><a href='./seeking-rewind.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=true'>seeking-rewind.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=true</a></div>
+            <div><a href='./seeking-rewind.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=false'>seeking-rewind.html?seekBeforeBuffering=true&seekCloseToStartOfSegment=false</a></div>
+            <div><a href='./seeking-rewind.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=true'>seeking-rewind.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=true</a></div>
+            <div><a href='./seeking-rewind.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=false'>seeking-rewind.html?seekBeforeBuffering=false&seekCloseToStartOfSegment=false</a></div>
+            <hr>
+            <div><a href='./seek-to-unbuffered-range-rewind.html'>seek-to-unbuffered-range-rewind.html</a></div>
+            <hr>
+            <div><a href='./simple-seeking.html?seekBeforeBuffering=true'>simple-seeking.html?seekBeforeBuffering=true</a></div>
+            <div><a href='./simple-seeking.html?seekBeforeBuffering=false'>simple-seeking.html?seekBeforeBuffering=false</a></div>
+            <hr>
+
+        </div>
+    </body>
+</html>

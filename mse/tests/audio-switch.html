@@ -1,3 +1,11 @@
+<!--
+    Usage:
+    logEvents=true // log video element events
+    moderateTimeUpdateEvents=true // moderate timeupdate events
+
+    audio-switch.html
+-->
+
 <!DOCTYPE html>
 <html>
     <head>
@@ -87,16 +95,16 @@
                         return
 
                 if(triggerSimulation) {
-                    console.log("VIVEK-DBG: All feeders ended, simulation is about to be triggered");
+                    logMsg("All feeders ended, simulation is about to be triggered");
 
                     waitForCondition(() => { return (video.currentTime >= 3);}, (5 - video.currentTime) * 1000).then(() => {
                         simulateAudioLaunguageSwitch();
                     }).catch(() => {
-                        console.log("VIVEK-DBG: Video is not reached to 3 to trigger simulation");
+                        logMsg("Video is not reached to 3 to trigger simulation");
                         cleanup()
                     })
                 } else {
-                    console.log("VIVEK-DBG: All feeders ended after simulation");
+                    logMsg("All feeders ended after simulation");
 
                     waitForCondition(checkForPlaying, 5000, "All feeders ended, but playing event not received").then(() => {
                         return waitForCondition(function () {
@@ -104,17 +112,17 @@
                                 }, ((video.duration - video.currentTime) * 1000) + 1000, "Video is not reached to end of the video")
                     }).then(() => {
                         testPassed = true;
-                        console.log("VIVEK-DBG: Test completed successfully");
+                        logMsg("Test completed successfully");
                         cleanup();
                     }).catch((error) => {
-                        console.log("VIVEK-DBG: Test Failed, " + error);
+                        logMsg("Test Failed, " + error);
                         cleanup()
                     })
                 }
             }
 
             function checkBufferPercentageAndwaitForCondition(isVideo, bufferPercentage) {
-                // console.log("VIVEK-DBG: checkBufferPercentageAndwaitForCondition: " + isVideo + " : " + video.readyState.toString() + ", " + bufferPercentage);
+                // logMsg("checkBufferPercentageAndwaitForCondition: " + isVideo + " : " + video.readyState.toString() + ", " + bufferPercentage);
 
                 if (video.readyState >= 1) {
                     if(isVideo) {
@@ -131,12 +139,12 @@
 
                     if(allSourceBuffersHaveData) {
                         waitForEvent(video, 'canplay', 5000).then(() => {
-                            console.log("VIVEK-DBG: Data loaded");
+                            logMsg("Data loaded");
                             return waitForEvent(video, 'playing', 10000)
                         }).then(() => {
-                            console.log("VIVEK-DBG: Player started playback");
+                            logMsg("Player started playback");
                         }).catch((error) => {
-                            console.log("VIVEK-DBG: " + error + ", currentTime=" + video.currentTime);
+                            logMsg(error + ", currentTime=" + video.currentTime);
                             cleanup()
                         })
                     }
@@ -149,7 +157,7 @@
 
                 if(this.showErrorBanner) {
                     this.showErrorBanner = false;
-                    console.log("VIVEK-DBG: " + text);
+                    logMsg(text);
                     document.getElementById('errors').innerHTML = text;
                 }
             }
@@ -158,7 +166,7 @@
             var currentTimeValidator = function (annotation) {
                 let currentTime = video.currentTime;
                 clearTimer(currentTimeValidatorId);
-                console.log("VIVEK-DBG: video.currentTime=" + currentTime + annotation);
+                logMsg("video.currentTime=" + currentTime + annotation);
                 if ((currentTime < positionBeforeBufferRemoval) && (positionBeforeBufferRemoval - currentTime) > 0.066) {
                     let errorMsg = `video.currentTime(${currentTime}) is less than the position when audio data was replaced (${positionBeforeBufferRemoval})`;
                     showBanner(errorMsg);
@@ -175,15 +183,15 @@
                 triggerSimulation = false;
 
                 waitForTime(0).then(() => {
-                    console.log("VIVEK-DBG: Seeking to 13");
+                    logMsg("Seeking to 13");
                     video.currentTime = 13;
                     return waitForEvent(video, 'seeked', 1000, "Seeked to 13, but seeked event not received")
                 }).then(() => {
                     if (video.currentTime < 13)
                         throw "Seeked to 13, but currentTime is less than 13";
 
-                    console.log("VIVEK-DBG: Playing video after seeking to 13");
-                    console.log('VIVEK-DBG: Scheduling audio data replacement after 3 second');
+                    logMsg("Playing video after seeking to 13");
+                    logMsg('Scheduling audio data replacement after 3 second');
                     return waitForTime(3000);
                 }).then(() =>{
                     video.pause();
@@ -197,7 +205,7 @@
                     let promise = waitForEvent(audioSourceBuffer, 'updateend', 1000, "updateend for Audio buffer removal not received");
                     positionBeforeBufferRemoval = video.currentTime;
                     audioSourceBuffer.remove(0, 1000);
-                    console.log('VIVEK-DBG: Audio data removed')
+                    logMsg('Audio data removed')
                     return promise;
                 }).then(() => {
                     currentTimeValidator(" @ Audio buffer removal completion");
@@ -222,7 +230,7 @@
                     clearTimeout(currentTimeValidatorId)
                     currentTimeValidatorId = -1
                 }).catch((error) => {
-                    console.log("VIVEK-DBG: Failure in simulation, " + error);
+                    logMsg("Failure in simulation, " + error);
                     cleanup()
                 })
             }
