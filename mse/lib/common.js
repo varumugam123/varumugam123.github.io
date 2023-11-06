@@ -252,6 +252,7 @@ function monitorTimePolling(expectedTime, interval, counter, timeStepFunction, b
         let delay = interval;
 
         return new InterruptablePromise((resolve, reject) => {
+            let lastReadPosition = -1;
             let checkTime = () => {
                 if (breakerFunction !== undefined && breakerFunction && breakerFunction()) {
                     clearTimer(id);
@@ -260,12 +261,20 @@ function monitorTimePolling(expectedTime, interval, counter, timeStepFunction, b
                 }
 
                 let currentTime = video.currentTime
-                if (currentTime >= expected || (expected - currentTime) < 0.066) {
+                let shouldProceedOnBackwardJump = false;
+
+                if (lastReadPosition != -1 && currentTime < lastReadPosition) {
+                    logMsg("Time jumped backward from " + lastReadPosition + " to " + currentTime + "!!!");
+                    shouldProceedOnBackwardJump = true;
+                }
+
+                if (currentTime >= expected || (expected - currentTime) < 0.066 || shouldProceedOnBackwardJump) {
+                    lastReadPosition = currentTime;
                     if (count > 0) {
                         count--;
 
                         if (timeStepFunction !== undefined && timeStepFunction)
-                            expected = currentTime + timeStepFunction();
+                            expected = currentTime + timeStepFunction(currentTime);
 
                         id = scheduleTask(checkTime, delay);
                     } else {
@@ -293,6 +302,7 @@ function monitorTimeOnUpdateEvent(element, expectedTime, counter, timeStepFuncti
         let id = -1;
 
         return new InterruptablePromise((resolve, reject) => {
+            let lastReadPosition = -1;
             let checkTime = () => {
                 if (breakerFunction !== undefined && breakerFunction()) {
                     cleanUp();
@@ -301,12 +311,20 @@ function monitorTimeOnUpdateEvent(element, expectedTime, counter, timeStepFuncti
                 }
 
                 let currentTime = video.currentTime
-                if (currentTime >= expected || (expected - currentTime) <= 0.066) {
+                let shouldProceedOnBackwardJump = false;
+
+                if (lastReadPosition != -1 && currentTime < lastReadPosition) {
+                    logMsg("Time jumped backward from " + lastReadPosition + " to " + currentTime + "!!!");
+                    shouldProceedOnBackwardJump = true;
+                }
+
+                if (currentTime >= expected || (expected - currentTime) <= 0.066 || shouldProceedOnBackwardJump) {
+                    lastReadPosition = currentTime;
                     if (count > 0) {
                         count--;
 
                         if (timeStepFunction !== undefined && timeStepFunction)
-                            expected = currentTime + timeStepFunction();
+                            expected = currentTime + timeStepFunction(currentTime);
                     } else {
                         cleanUp(id);
                         resolve();

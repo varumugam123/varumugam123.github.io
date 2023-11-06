@@ -1,22 +1,22 @@
 <!--
     Usage:
     logEvents=true // log video element events
-    moderateTimeUpdateEvents=true // moderate timeupdate events
+    moderateTimeupdateLogging=true // moderate timeupdate events
 
-    sample-replacement.html?reenqueueVideo=true // video will be reenqueued (implicit) at default time 2.5 seconds
-    sample-replacement.html?reenqueueVideoAt=5
-    sample-replacement.html?reenqueueVideoAt=5&removeDataOnReenqueue=true // video will be reenqueued at 5 seconds and data will be removed before reenqueueing (explicit)
+    sample-replacement.html?moderateTimeupdateLogging=true&reenqueueVideo=true // video will be reenqueued (implicit) at default time 2.5 seconds
+    sample-replacement.html?moderateTimeupdateLogging=true&reenqueueVideoAt=5
+    sample-replacement.html?moderateTimeupdateLogging=true&reenqueueVideoAt=5&removeDataOnReenqueue=true // video will be reenqueued at 5 seconds and data will be removed before reenqueueing (explicit)
 
-    sample-replacement.html?audio=true&reenqueueVideo=true&reenqueueVideoAt=5 // audio will be playing, but only video samples will be reenqueued (implicit)
-    sample-replacement.html?reenqueueVideoAt=5&reenqueueAudioAt=3 // video will be reenqueued at 5 seconds and audio will be reenqueued at 3 seconds (implicity)
-    sample-replacement.html?reenqueueVideoAt=5&reenqueueAudioAt=3&removeDataOnReenqueue=true // video & audio will be reenqueued and data will be removed before reenqueueing (explicit)
-    sample-replacement.html?reenqueueVideoAt=3&reenqueueAudioAt=5&removeDataOnReenqueue=true // video & audio will be reenqueued and data will be removed before reenqueueing (explicit)
+    sample-replacement.html?moderateTimeupdateLogging=true&audio=true&reenqueueVideo=true&reenqueueVideoAt=5 // audio will be playing, but only video samples will be reenqueued (implicit)
+    sample-replacement.html?moderateTimeupdateLogging=true&reenqueueVideoAt=5&reenqueueAudioAt=3 // video will be reenqueued at 5 seconds and audio will be reenqueued at 3 seconds (implicity)
+    sample-replacement.html?moderateTimeupdateLogging=true&reenqueueVideoAt=5&reenqueueAudioAt=3&removeDataOnReenqueue=true // video & audio will be reenqueued and data will be removed before reenqueueing (explicit)
+    sample-replacement.html?moderateTimeupdateLogging=true&reenqueueVideoAt=3&reenqueueAudioAt=5&removeDataOnReenqueue=true // video & audio will be reenqueued and data will be removed before reenqueueing (explicit)
 
-    sample-replacement.html?reenqueueVideoAt=3&reenqueueAudioAt=3 // video & audio will be reenqueued (implicit)
-    sample-replacement.html?reenqueueVideoAt=3&reenqueueAudioAt=3&removeDataOnReenqueue=true // video & audio will be reenqueued and data will be removed before reenqueueing (explicit)
+    sample-replacement.html?moderateTimeupdateLogging=true&reenqueueVideoAt=3&reenqueueAudioAt=3 // video & audio will be reenqueued (implicit)
+    sample-replacement.html?moderateTimeupdateLogging=true&reenqueueVideoAt=3&reenqueueAudioAt=3&removeDataOnReenqueue=true // video & audio will be reenqueued and data will be removed before reenqueueing (explicit)
  -->
 
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
     <head>
         <meta charset='UTF-8' />
@@ -157,10 +157,36 @@
                     waitForCondition(checkForPlaying, 10000, "Enough data is fed, but playback hasn't started").then(() => {
                         logMsg("Player started playback");
                         if(feeder.doneReenqueuing) {
+                            // Determine the expected time from video.currentTime
                             let expectedTime = isVideo ? feeders.video.timeOfReenqueue : feeders.audio.timeOfReenqueue
-                            let finishMonitoringAt = expectedTime + 1.5;
-                            return monitorTimePolling(expectedTime, 100, 100, () => (0.060), () => (video.currentTime >= finishMonitoringAt));
-                            // return monitorTimeOnUpdateEvent(video, expectedTime, 100, () => (0.250), () => (video.currentTime >= finishMonitoringAt));
+                            let gracePeriod = expectedTime + 0.5 // tolerate flucutations until this point in time
+
+                            let min = video.duration;
+                            let max = 0;
+                            forAllFeeders((feeder, isVideo) => {
+                                if(feeder.timeOfReenqueue > 0) {
+                                    if(feeder.timeOfReenqueue > max)
+                                        max = feeder.timeOfReenqueue
+
+                                    if(feeder.timeOfReenqueue < min)
+                                        min = feeder.timeOfReenqueue
+                                }
+                            });
+
+                            // If both buffers reenqueue close to each other
+                            // until the last buffer's reenqueue + 0.5 time
+                            // tolerate any fluctuations (but video.currentTime should be greater
+                            // than the least of the reenqueue time)
+                            if((max - min) <= 1) {
+                                expectedTime = min
+                                gracePeriod = max + 0.5
+                            }
+
+                            // Stop monitoring once we played beyond grace period and the next second
+                            let finishMonitoringAt = gracePeriod + 1;
+
+                            return monitorTimePolling(expectedTime, 100, 100, (time) => (time <= gracePeriod ? 0 : 0.090), () => (video.currentTime >= finishMonitoringAt));
+                            // return monitorTimeOnUpdateEvent(video, expectedTime, 100, (time) => (time <= gracePeriod ? 0 : 0.200), () => (video.currentTime >= finishMonitoringAt));
                         }
                     }).catch((error) => {
                         logMsg(error);
@@ -243,6 +269,7 @@
                     feeder.scheduledReenqueueAt = isVideo ? reenqueueVideoAt : reenqueueAudioAt;
                     feeder.removeFragment = removeDataOnReenqueue;
                     feeder.doneReenqueuing = false
+                    feeder.timeOfReenqueue = 0
 
                     logMsg((isVideo ? "Video" : "Audio") + ", Reenqueue:" + feeder.reenqueue + ", ReenqueueAt:" + feeder.scheduledReenqueueAt + ", RemoveDataOnReenqueue:" + feeder.removeFragment);
                 })

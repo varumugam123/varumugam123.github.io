@@ -1,16 +1,16 @@
 <!--
     Usage:
     logEvents=true // log video element events
-    moderateTimeUpdateEvents=true // moderate timeupdate events
+    moderateTimeupdateLogging=true // moderate timeupdate events
 
-    pr-1064-test-app.html?logEvents=true
-    pr-1064-test-app.html?playBeforeSeeking=true&pushBufferBeforeSeek=true
-    pr-1064-test-app.html?playBeforeSeeking=true&pushBufferBeforeSeek=false
-    pr-1064-test-app.html?playBeforeSeeking=false&pushBufferBeforeSeek=true
-    pr-1064-test-app.html?playBeforeSeeking=false&pushBufferBeforeSeek=false
+    pr-1064-test-app.html?moderateTimeupdateLogging=true&logEvents=true
+    pr-1064-test-app.html?moderateTimeupdateLogging=true&playBeforeSeeking=true&pushBufferBeforeSeek=true
+    pr-1064-test-app.html?moderateTimeupdateLogging=true&playBeforeSeeking=true&pushBufferBeforeSeek=false
+    pr-1064-test-app.html?moderateTimeupdateLogging=true&playBeforeSeeking=false&pushBufferBeforeSeek=true
+    pr-1064-test-app.html?moderateTimeupdateLogging=true&playBeforeSeeking=false&pushBufferBeforeSeek=false
  -->
 
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
     <head>
         <meta charset='UTF-8' />
@@ -118,7 +118,7 @@
                         video.currentTime = 6
                         return promise;
                     }).then(() => {
-                        logMsg("Received seeking event, currentTime=" + video.currentTime);
+                        logMsg("Received seeded event, currentTime=" + video.currentTime);
                         if(video.currentTime < 6)
                             throw "Video is seeked to 6, but currentTime is less than 6";
 
