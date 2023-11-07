@@ -63,6 +63,8 @@
 
         <script src="../lib/utils.js"></script>
         <script src="../lib/mse.js"></script>
+
+        <script src="../lib/logging.js"></script>
         <script src="../lib/common.js"></script>
         <script src="../lib/feeder.js"></script>
 
@@ -101,7 +103,7 @@
                 let urls = urlsThroughNumber(segmentUrl, 0, (ms.duration / segmentDuration) - 1)
                 urls.unshift(initUrl)
 
-                cacheMediaIfRequiredSync(urls).then(() => {
+                cacheMediaIfRequired(urls).then(() => {
                     var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.4d401f"');
 
                     feeders.video = new Feeder(videoBuffer, urls, null, () => {

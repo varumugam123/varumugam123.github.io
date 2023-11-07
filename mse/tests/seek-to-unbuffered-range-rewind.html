@@ -57,8 +57,11 @@
 
         <script src="../lib/utils.js"></script>
         <script src="../lib/mse.js"></script>
-        <script src="../lib/big_buck_bunny_720p_30fps.js"></script>
+
+        <script src="../lib/logging.js"></script>
         <script src="../lib/common.js"></script>
+        <script src="../lib/big_buck_bunny_720p_30fps.js"></script>
+        <script src="../lib/red_bull.js"></script>
         <script src="../lib/feeder.js"></script>
 
         <script type='text/javascript'>
@@ -69,6 +72,7 @@
             var enableAudio = false
             var sentTestStatus = false;
             var testPassed = false;
+            const testContent = new RedBullContent();
 
             function cleanup() {
                 performCommonCleanup();
@@ -110,12 +114,10 @@
             function onSourceOpen() {
                 ms.duration = 20 // maxFetchIdx * segmentDuration
 
-                var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.640028"')
+                var videoBuffer = ms.addSourceBuffer(testContent.videoCodec)
 
                 // Push init segment and data for 12 - 20 seconds
-                let videoUrlsToLoad = urlsThroughNumber(videoUrls[0], 4, 5);
-                videoUrlsToLoad.unshift(videoInitUrls[0])
-                feeders.video = new Feeder(videoBuffer, videoUrlsToLoad, () => {
+                feeders.video = new Feeder(videoBuffer, testContent.getVideoUrlsForTime(12, 19.5, true), () => {
                     // Seek to buffered start
                     let seekPosition = video.buffered.start(0) + 0.5;
 
@@ -134,7 +136,7 @@
                                 feeders.video = null;
                                 waitForEvent(video, 'seeking', 1000).then(() => {
                                     logMsg("Received seeking event and attached feeder, currentTime=" + video.currentTime);
-                                    feeders.video = new Feeder(videoBuffer, urlsThroughNumber(videoUrls[0], 1, 3), onFeedEnded, null, true);
+                                    feeders.video = new Feeder(videoBuffer, testContent.getVideoUrlsForTime(0, 19.5, false), onFeedEnded, null, true);
                                 }).catch(() => {
                                     logMsg("Seeking event is not received, currentTime=" + video.currentTime);
                                     cleanup();

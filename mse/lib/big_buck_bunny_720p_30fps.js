@@ -1,25 +1,30 @@
-var mediaContent = 'bigbucksbunny';
-let useLocalResources = false;
+// Main manifests :
+// http://dash.edgesuite.net/akamai/bbb_30fps/bbb_30fps.mpd
+// https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd
 
-let videoInitUrls = [
-    'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps_1280x720_4000k/bbb_30fps_1280x720_4000k_0.m4v',
-]
-let videoUrls = [
-    'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps_1280x720_4000k/bbb_30fps_1280x720_4000k_$Number$.m4v',
-]
+class BBBContent extends BaseContent {
+    constructor() {
+        super();
 
-let audioUrls = [
-    'https://dash.akamaized.net/akamai/bbb_30fps/bbb_a64k/bbb_a64k_$Number$.m4a'
-]
-let audioInitUrls = [
-    'https://dash.akamaized.net/akamai/bbb_30fps/bbb_a64k/bbb_a64k_0.m4a'
-]
+        this.name = "bigbuckbunny"
 
-if (useLocalResources) {
-    videoInitUrls = ['./big_buck_bunny_resource/bbb_30fps_1280x720_4000k_0.m4v']
-    videoUrls = ['./big_buck_bunny_resource/bbb_30fps_1280x720_4000k_$Number$.m4v']
-    audioInitUrls = ['./big_buck_bunny_resource/bbb_a64k_0.m4a']
-    audioUrls = ['./big_buck_bunny_resource/bbb_a64k_$Number$.m4a']
-}
+        this.videoInitUrls = [
+            'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps_1280x720_4000k/bbb_30fps_1280x720_4000k_0.m4v',
+        ];
+        this.videoUrls = [
+            'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps_1280x720_4000k/bbb_30fps_1280x720_4000k_$Number$.m4v',
+        ];
 
-const segmentDuration = 4.0  // seconds
+        this.audioInitUrls = [
+            'https://dash.akamaized.net/akamai/bbb_30fps/bbb_a64k/bbb_a64k_0.m4a'
+        ];
+        this.audioUrls = [
+            'https://dash.akamaized.net/akamai/bbb_30fps/bbb_a64k/bbb_a64k_$Number$.m4a'
+        ];
+
+        this.videoCodec = 'video/mp4; codecs="avc1.640028"';
+        this.audioCodec = 'audio/mp4; codecs="mp4a.40.2"';
+        this.contentStartsFrom = 1;
+        this.segmentDuration = 4;
+    }
+};

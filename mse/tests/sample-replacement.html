@@ -67,8 +67,11 @@
 
         <script src="../lib/utils.js"></script>
         <script src="../lib/mse.js"></script>
-        <script src="../lib/big_buck_bunny_720p_30fps.js"></script>
+
+        <script src="../lib/logging.js"></script>
         <script src="../lib/common.js"></script>
+        <script src="../lib/big_buck_bunny_720p_30fps.js"></script>
+        <script src="../lib/red_bull.js"></script>
         <script src="../lib/feeder.js"></script>
 
         <script type='text/javascript'>
@@ -94,6 +97,7 @@
 
             var sentTestStatus = false;
             var testPassed = false;
+            const testContent = new RedBullContent();
 
             function cleanup() {
                 performCommonCleanup();
@@ -195,7 +199,7 @@
                 }
             }
 
-            var finishOrRenenqueue = (isVideo, urls, reenqueueTime) => {
+            var finishOrRenenqueue = (isVideo) => {
                 if (feeders.video == null && feeders.audio == null)
                     return;
 
@@ -209,11 +213,12 @@
                         let delta = (feeder.scheduledReenqueueAt >= video.currentTime) ? (feeder.scheduledReenqueueAt - video.currentTime) * 1000 : 0;
                         let timeOut = (delta > 50) ? delta : 50;
                         logMsg("Scheduling task to reenqueue in " + timeOut + " ms, for " + (isVideo ? "Video" : "Audio") + " @ " + video.currentTime);
-                        setTimeout(() => { finishOrRenenqueue(isVideo, urls, feeder.reenqueueAt); }, timeOut);
+                        setTimeout(() => { finishOrRenenqueue(isVideo); }, timeOut);
                         return;
                     }
 
                     let timeOfReenqueue = video.currentTime;
+                    let urls = testContent.getUrlsForTime(isVideo, timeOfReenqueue, 11.5, false)
                     var attachNewFeeder = function () {
                         let newFeeder = new Feeder(sourceBuffer, urls, onFeedEnded, checkBufferPercentageAndwaitForCondition, isVideo);
                         newFeeder.reenqueue = feeder.reenqueue;
@@ -250,15 +255,15 @@
                 ms.duration = 12 // maxFetchIdx * segmentDuration
 
                 if (enableAudio) {
-                    var audioBuffer = ms.addSourceBuffer('audio/mp4; codecs="mp4a.40.2"')
-                    feeders.audio = new Feeder(audioBuffer, urlsThroughNumber(audioUrls[0], 0, 3), () => {
-                        finishOrRenenqueue(false, urlsThroughNumber(audioUrls[0], bufferIndexFromTime(video.currentTime), 3))
+                    var audioBuffer = ms.addSourceBuffer(testContent.audioCodec)
+                    feeders.audio = new Feeder(audioBuffer, testContent.getAudioUrlsForTime(0, 11.5, true), () => {
+                        finishOrRenenqueue(false)
                     }, checkBufferPercentageAndwaitForCondition, false);
                 }
 
-                var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.640028"')
-                feeders.video = new Feeder(videoBuffer, urlsThroughNumber(videoUrls[0], 0, 3), () => {
-                    finishOrRenenqueue(true, urlsThroughNumber(videoUrls[0], bufferIndexFromTime(video.currentTime), 3))
+                var videoBuffer = ms.addSourceBuffer(testContent.videoCodec)
+                feeders.video = new Feeder(videoBuffer, testContent.getVideoUrlsForTime(0, 11.5, true), () => {
+                    finishOrRenenqueue(true)
                 }, checkBufferPercentageAndwaitForCondition, true);
 
                 [true, false].forEach((isVideo) => {

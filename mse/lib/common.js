@@ -10,51 +10,6 @@ var mediaContent;
 var ms = null
 var video = document.querySelector('video')
 
-class Logger {
-    constructor(logger = console.log) {
-        this.logger = logger;
-        this.prefix = "VIVEK-DBG: ";
-        this.enableTimeTag = true;
-    }
-
-    setPrefix(prefix = "") {
-        this.prefix = prefix;
-    }
-
-    tagTime(enable) {
-        this.enableTimeTag = enable;
-    }
-
-    log(msg) {
-        if (this.prefix !== undefined && this.prefix)
-            msg = this.prefix + msg;
-
-        if (this.enableTimeTag) {
-            let fixWidth = (input, length, padding) => {
-                padding = String(padding || "0");
-                return (padding.repeat(length) + input).slice(-length);
-            }
-
-            let date = new Date();
-
-            msg = `[${fixWidth(date.getUTCHours(), 2, 0)}:${fixWidth(date.getUTCMinutes(), 2, 0)}:${fixWidth(date.getUTCSeconds(), 2, 0)}:${fixWidth(date.getUTCMilliseconds(), 3, 0)}] ${msg}`;
-        }
-
-        this.logger(msg);
-
-        return msg;
-    }
-}
-
-var myLogger = new Logger();
-
-function logMsg(msg) {
-    if (myLogger)
-        myLogger.log(msg);
-    else
-        console.log("VIVEK-DBG: " + msg);
-}
-
 if (window.checkTestCaseAPI) {
     checkTestCaseAPI();
 } else {
@@ -98,13 +53,11 @@ function initApp() {
         video.removeEventListener('timeupdate', video.timeUpdateEventHandler);
     }
 
-    cacheMediaIfRequiredSync().then(() => {
-        ms = new MediaSource()
-        waitForEvent(ms, 'sourceopen', 10000).then(onSourceOpen).catch((e) => { logMsg("Failed to open MediaSource, " + e); });
+    ms = new MediaSource()
+    waitForEvent(ms, 'sourceopen', 10000).then(onSourceOpen).catch((e) => { logMsg("Failed to open MediaSource, " + e); });
 
-        video.installEventHandlers();
-        video.src = window.URL.createObjectURL(ms)
-    });
+    video.installEventHandlers();
+    video.src = window.URL.createObjectURL(ms)
 }
 
 function checkForPlaying() {
@@ -264,7 +217,7 @@ function monitorTimePolling(expectedTime, interval, counter, timeStepFunction, b
                 let shouldProceedOnBackwardJump = false;
 
                 if (lastReadPosition != -1 && currentTime < lastReadPosition) {
-                    logMsg("Time jumped backward from " + lastReadPosition + " to " + currentTime + "!!!");
+                    logWarn("Time jumped backward from " + lastReadPosition + " to " + currentTime + "!!!");
                     shouldProceedOnBackwardJump = true;
                 }
 
@@ -314,7 +267,7 @@ function monitorTimeOnUpdateEvent(element, expectedTime, counter, timeStepFuncti
                 let shouldProceedOnBackwardJump = false;
 
                 if (lastReadPosition != -1 && currentTime < lastReadPosition) {
-                    logMsg("Time jumped backward from " + lastReadPosition + " to " + currentTime + "!!!");
+                    logWarn("Time jumped backward from " + lastReadPosition + " to " + currentTime + "!!!");
                     shouldProceedOnBackwardJump = true;
                 }
 
@@ -353,21 +306,14 @@ function monitorTimeOnUpdateEvent(element, expectedTime, counter, timeStepFuncti
     return wrapper();
 }
 
-function cacheMediaIfRequiredSync(urlsToCache = []) {
+function cacheMediaIfRequired(urlsToCache = []) {
     return new InterruptablePromise((resolve, reject) => {
         if (Feeder !== undefined && cacheMediaBeforeTest) {
             let urls = urlsToCache
             if (urls === undefined || urls == null || urls.length == 0) {
-                if (mediaContent !== undefined && mediaContent === 'bigbucksbunny') {
-                    logMsg("Caching big buck bunny media");
-                } else {
-                    logMsg("Caching media was enbaled but no urls provided, skipping caching");
-                    resolve();
-                    return;
-                }
-
-                urls = urls.concat(urlsThroughNumber(videoUrls[0], 0, 5));
-                urls = urls.concat(urlsThroughNumber(audioUrls[0], 0, 5));
+                logMsg("Caching media was enbaled but no urls provided, skipping caching");
+                resolve();
+                return;
             }
 
             new Feeder(
@@ -417,6 +363,53 @@ function urlsThroughNumber(urlTemplate, start, end) {
 function nextDivisibleNumber(number, divisor) {
     return Math.ceil((number - 0.001) / divisor) * divisor;
 }
+
+class BaseContent {
+    constructor() {
+        this.name = "base"
+
+        this.videoInitUrls = [];
+        this.videoUrls = [];
+
+        this.audioInitUrls = [];
+        this.audioUrls = [];
+
+        this.videoCodec = '';
+        this.audioCodec = '';
+        this.contentStartsFrom = 0;
+        this.segmentDuration = 0;
+    }
+
+    getUrls(video, sIndex, eIndex, includeInit = false) {
+        let dataUrl = (video ? this.videoUrls : this.audioUrls)[0]
+        let urls = urlsThroughNumber(dataUrl, sIndex, eIndex);
+        if (includeInit)
+            urls.unshift((video ? this.videoInitUrls : this.audioInitUrls)[0]);
+        return urls;
+    }
+
+    getVideoUrls(sIndex, eIndex, includeInit = false) {
+        return this.getUrls(true, sIndex, eIndex, includeInit);
+    }
+
+    getAudioUrls(sIndex, eIndex, includeInit = false) {
+        return this.getUrls(false, sIndex, eIndex, includeInit);
+    }
+
+    getUrlsForTime(video, start, end, includeInit = false) {
+        let startSegment = bufferIndexFromTime(start, this.segmentDuration, this.contentStartsFrom);
+        let endSegment = bufferIndexFromTime(end, this.segmentDuration, this.contentStartsFrom);
+        return this.getUrls(video, startSegment, endSegment, includeInit);
+    }
+
+    getVideoUrlsForTime(start, end, includeInit = false) {
+        return this.getUrlsForTime(true, start, end, includeInit);
+    }
+
+    getAudioUrlsForTime(start, end, includeInit = false) {
+        return this.getUrlsForTime(false, start, end, includeInit);
+    }
+};
 
 // Cleanup functions
 
