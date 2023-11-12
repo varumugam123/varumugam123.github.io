@@ -125,7 +125,7 @@
                         if(video.currentTime < 6) {
                             // throw "Video is seeked to 6, but currentTime is less than 6";
                             logWarn("FIX ME: Video is seeked to 6, but currentTime is less than 6")
-                            return waitForCondition(() => {return video.currentTime >= 6}, 1500, "Video didn't play from 6 to 8")
+                            return waitForCondition(() => {return video.currentTime >= 6}, 1500, "Video didn't play from 6 to 8", 250)
                         }
 
                         return waitForTime(1000);
@@ -199,6 +199,15 @@
 
                 video.addEventListener('timeupdate', updateStats);
             }
+
+            let urlsToCache = testContent.getVideoUrlsForTime(0, 20, true);
+            cacheMediaIfRequired(urlsToCache).then(() => {
+                // calls onSourceOpen() when MSE is ready
+                initializeMSE();
+            }).catch((error) => {
+                logMsg(error);
+                cleanup();
+            });
         </script>
     </body>
 </html>

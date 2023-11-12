@@ -5,10 +5,11 @@ var getParamValue = (param) => { let val = parseFloat(searchParams.get(param), 1
 var logEvents = checkProp('logEvents')
 var moderateTimeupdateLogging = checkProp('moderateTimeupdateLogging')
 var cacheMediaBeforeTest = checkProp('cacheMediaBeforeTest')
-var mediaContent;
 
 var ms = null
 var video = document.querySelector('video')
+var audio = document.querySelector('audio')
+const gMediaElement = (audio !== undefined && audio) ? audio : video
 
 if (window.checkTestCaseAPI) {
     checkTestCaseAPI();
@@ -19,49 +20,53 @@ if (window.checkTestCaseAPI) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    setTimeout(initApp, 0)
+    scheduleTask(() => {
+        initApp(gMediaElement)
+    }, 0)
 })
 
-function initApp() {
-    video.installEventHandlers = function () {
+function initApp(mediaElement = gMediaElement) {
+    mediaElement.installEventHandlers = function () {
         var lastLoggedEvent = 'timeupdate'
         var lastLoggedTime = 0
-        video.genericEventHandler = (e) => {
+        mediaElement.genericEventHandler = (e) => {
             lastLoggedEvent = e.name;
             if (logEvents)
-                logMsg("Received event: " + e.type + " @ " + video.currentTime);
+                logMsg("Received event: " + e.type + " @ " + mediaElement.currentTime);
         }
-        video.timeUpdateEventHandler = (e) => {
-            if (moderateTimeupdateLogging ? ((lastLoggedEvent != 'timeupdate') || ((video.currentTime - lastLoggedTime) >= 1)) : true) {
+        mediaElement.timeUpdateEventHandler = (e) => {
+            if (moderateTimeupdateLogging ? ((lastLoggedEvent != 'timeupdate') || ((mediaElement.currentTime - lastLoggedTime) >= 1)) : true) {
                 lastLoggedEvent = 'timeupdate';
-                lastLoggedTime = video.currentTime
+                lastLoggedTime = mediaElement.currentTime
                 logMsg("Received event: timeupdate @ " + lastLoggedTime);
             }
         }
 
-        video.events = ['abort', 'canplay', 'canplaythrough', 'durationchange', 'emptied', 'encrypted',
+        mediaElement.events = ['abort', 'canplay', 'canplaythrough', 'durationchange', 'emptied', 'encrypted',
             'ended', 'error', 'loadeddata', 'loadedmetadata', 'loadstart', 'pause', 'play', 'playing',
             'progress', 'ratechange', 'seeked', 'seeking', 'stalled', 'suspend', 'volumechange', 'waiting'];
-        video.events.forEach((event) => { video.addEventListener(event, video.genericEventHandler); });
-        video.addEventListener('timeupdate', video.timeUpdateEventHandler);
+        mediaElement.events.forEach((event) => { mediaElement.addEventListener(event, mediaElement.genericEventHandler); });
+        mediaElement.addEventListener('timeupdate', mediaElement.timeUpdateEventHandler);
     }
 
-    video.removeEventHandlers = function () {
-        if (video.events === undefined || video.events == null)
+    mediaElement.removeEventHandlers = function () {
+        if (mediaElement.events === undefined || mediaElement.events == null)
             return;
-        video.events.forEach((event) => { video.removeEventListener(event, video.genericEventHandler); });
-        video.removeEventListener('timeupdate', video.timeUpdateEventHandler);
+        mediaElement.events.forEach((event) => { mediaElement.removeEventListener(event, mediaElement.genericEventHandler); });
+        mediaElement.removeEventListener('timeupdate', mediaElement.timeUpdateEventHandler);
     }
 
-    ms = new MediaSource()
-    waitForEvent(ms, 'sourceopen', 10000).then(onSourceOpen).catch((e) => { logMsg("Failed to open MediaSource, " + e); });
-
-    video.installEventHandlers();
-    video.src = window.URL.createObjectURL(ms)
+    mediaElement.installEventHandlers();
 }
 
-function checkForPlaying() {
-    return (video.currentTime > 0 && !video.paused && !video.ended && video.readyState > 2);
+function initializeMSE(mediaElement = gMediaElement) {
+    ms = new MediaSource()
+    waitForEvent(ms, 'sourceopen', 10000).then(onSourceOpen).catch((e) => { logMsg("Failed to open MediaSource, " + e); });
+    mediaElement.src = window.URL.createObjectURL(ms)
+}
+
+function checkForPlaying(mediaElement = gMediaElement) {
+    return (mediaElement.currentTime > 0 && !mediaElement.paused && !mediaElement.ended && mediaElement.readyState > 2);
 }
 
 // Scheduling functions
@@ -135,7 +140,7 @@ function waitForTime(delay) {
     return wrapper();
 }
 
-function waitForCondition(condition, duration, reason) {
+function waitForCondition(condition, duration, reason, peepInterval = 1000) {
     let wrapper = () => {
         let timeout = duration
         let predicate = condition
@@ -151,7 +156,7 @@ function waitForCondition(condition, duration, reason) {
                 if (timeout <= 0) {
                     reject(reason === undefined ? "Timeout waiting for condition" : reason);
                 } else {
-                    let delay = timeout > 1000 ? 1000 : timeout;
+                    let delay = (timeout > peepInterval) ? peepInterval : timeout;
                     timeout -= delay;
                     id = scheduleTask(checkCondition, delay);
                 }
@@ -197,7 +202,7 @@ function waitForEvent(element, event, duration, errormsg) {
     return wrapper();
 }
 
-function monitorTimePolling(expectedTime, interval, counter, timeStepFunction, breakerFunction, reason) {
+function monitorTimePolling(expectedTime, interval, counter, timeStepFunction, breakerFunction, reason, mediaElement = gMediaElement) {
     let wrapper = () => {
         let expected = expectedTime;
         let count = counter;
@@ -213,7 +218,7 @@ function monitorTimePolling(expectedTime, interval, counter, timeStepFunction, b
                     return;
                 }
 
-                let currentTime = video.currentTime
+                let currentTime = mediaElement.currentTime
                 let shouldProceedOnBackwardJump = false;
 
                 if (lastReadPosition != -1 && currentTime < lastReadPosition) {
@@ -263,7 +268,7 @@ function monitorTimeOnUpdateEvent(element, expectedTime, counter, timeStepFuncti
                     return;
                 }
 
-                let currentTime = video.currentTime
+                let currentTime = element.currentTime
                 let shouldProceedOnBackwardJump = false;
 
                 if (lastReadPosition != -1 && currentTime < lastReadPosition) {
@@ -332,9 +337,9 @@ function cacheMediaIfRequired(urlsToCache = []) {
     });
 }
 
-function logSourceBufferInfo(buffer, video) {
+function logSourceBufferInfo(buffer, mediaElement = gMediaElement) {
     for (let i = 0; i < buffer.buffered.length; ++i) {
-        logMsg((video ? "Video" : "Audio") + " Buffer info: " + i + ", [" + buffer.buffered.start(i) + " - " + buffer.buffered.end(i) + "]");
+        logMsg((mediaElement ? "mediaElement" : "Audio") + " Buffer info: " + i + ", [" + buffer.buffered.start(i) + " - " + buffer.buffered.end(i) + "]");
     }
 }
 
@@ -343,13 +348,13 @@ function logAllSourceBufferInfo() {
 }
 
 // Ref : https://dev.to/ycmjason/how-to-create-range-in-javascript-539i#:~:text=range%20is%20a%20function%20that,be%20using%20a%20for%20loop.
-const rangeImpl = (s, e) => e > s ? Array(e - s + 1).fill(0).map((x, y) => y + s) : Array(s - e + 1).fill(0).map((x, y) => - y + s);
 function range(start, end) {
     if (end === undefined) {
         end = start;
         start = 0;
     }
-    return rangeImpl(start, end);
+
+    return ((s, e) => e > s ? Array(e - s + 1).fill(0).map((x, y) => y + s) : Array(s - e + 1).fill(0).map((x, y) => - y + s))(start, end);
 }
 
 function bufferIndexFromTime(time, segmentDuration = 4, segmentsStartFrom = 1) {
@@ -361,7 +366,7 @@ function urlsThroughNumber(urlTemplate, start, end) {
 }
 
 function nextDivisibleNumber(number, divisor) {
-    return Math.ceil((number - 0.001) / divisor) * divisor;
+    return Math.ceil((number > 0 ? (number - 0.001) : number) / divisor) * divisor;
 }
 
 class BaseContent {
@@ -384,7 +389,7 @@ class BaseContent {
         let dataUrl = (video ? this.videoUrls : this.audioUrls)[0]
         let urls = urlsThroughNumber(dataUrl, sIndex, eIndex);
         if (includeInit)
-            urls.unshift((video ? this.videoInitUrls : this.audioInitUrls)[0]);
+            urls.unshift("init_" + (video ? this.videoInitUrls : this.audioInitUrls)[0]);
         return urls;
     }
 
@@ -413,15 +418,15 @@ class BaseContent {
 
 // Cleanup functions
 
-function performCommonCleanup() {
-    video.pause();
-    video.removeEventHandlers();
+function performCommonCleanup(mediaElement = gMediaElement) {
+    mediaElement.pause();
+    mediaElement.removeEventHandlers();
     clearAllTimers();
     performFeederCleanup();
 
-    ms = null
     waitForTime(3000).then(() => {
-        video.src = ''
-        video.remove()
-    }).catch((e) => { logMsg("Failed to remove video, " + e); });
+        mediaElement.src = ''
+        mediaElement.remove()
+        ms = null
+    }).catch((e) => { logMsg("Failed to remove media element, " + e); });
 }

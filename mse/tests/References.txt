@@ -6,3 +6,5 @@ https://github.com/Dash-Industry-Forum/dash.js/tree/66d0785cabebd4298782cf1a2734
 
 Test Content:
 https://dash.akamaized.net/akamai/
+https://ottverse.com/free-hls-m3u8-test-urls/
+https://ottverse.com/free-mpeg-dash-mpd-manifest-example-test-urls/

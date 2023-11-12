@@ -1,0 +1,83 @@
+<!--
+    Usage:
+    delayed-async-task-dispatch-simple.html
+-->
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset='UTF-8' />
+        <meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate' />
+        <meta http-equiv='Pragma' content='no-cache' />
+        <meta http-equiv='Expires' content='0' />
+        <title>Video Test</title>
+
+        <style>
+        video {
+            width: 100%;
+            height: 100%;
+        }
+        body {
+            margin:0;
+            padding:0;
+            background-color:transparent;
+            overflow: hidden;
+        }
+        #stats {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            background-color: grey;
+            color: white;
+            font-size: xx-large;
+        }
+        #errors {
+            position: absolute;
+            /* left: 10px; */
+            top: 250px;
+            background-color: red;
+            font-size: xx-large;
+        }
+        </style>
+    </head>
+
+    <body>
+        <div>
+            <video id='videoPlayer' controls autoplay muted=false></video>
+            <div>
+                <span id='stats'/>
+            </div>
+            <div style="text-align:center;" >
+                <span id='errors'></span>
+            </div>
+        </div>
+
+        <script type='text/javascript'>
+            if (!window.MediaSource) {
+                throw 'No Media Source API available'
+            }
+
+            video=document.querySelector('video')
+            // video.src='../media/outro.6de0c5915653eff4b2dc7648d3927ca0.sha.mp4'
+            video.src='http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+            video.onplaying = () => {
+                console.log('video.onplaying')
+                video.onplaying = null
+                setTimeout(function () {
+                    console.log('clearing video.src, to force media player destruction')
+                    video.src='' // Force destroy media player
+
+                    for (let x = 1; x < 10; x++) {
+                        for (let y = 1; y < 100; y++) {
+                            for (let i = 1; i < 1000; i++) {
+                                setTimeout(()=> {let x=0; x++;}, 1);
+                            }
+                        }
+                    }
+                    console.log('cleared video.src, to force media player destruction')
+
+                }, 1000);
+            }
+        </script>
+    </body>
+</html>

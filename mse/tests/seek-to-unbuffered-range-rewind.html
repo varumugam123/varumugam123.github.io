@@ -69,7 +69,6 @@
                 throw 'No Media Source API available'
             }
 
-            var enableAudio = false
             var sentTestStatus = false;
             var testPassed = false;
             const testContent = new RedBullContent();
@@ -151,6 +150,15 @@
                     video.currentTime =  seekPosition;
                 }, null, true);
             }
+
+            let urlsToCache = testContent.getVideoUrlsForTime(0, 20, true);
+            cacheMediaIfRequired(urlsToCache).then(() => {
+                // calls onSourceOpen() when MSE is ready
+                initializeMSE();
+            }).catch((error) => {
+                logMsg(error);
+                cleanup();
+            });
         </script>
     </body>
 </html>

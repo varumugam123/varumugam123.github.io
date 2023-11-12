@@ -251,6 +251,19 @@
                 var videoBuffer = ms.addSourceBuffer(testContent.videoCodec)
                 feeders.video = new Feeder(videoBuffer, testContent.getVideoUrlsForTime(0, 20, true), onFeedEnded, checkBufferPercentageAndwaitForCondition, true);
             }
+
+            let urlsToCache = testContent.getVideoUrlsForTime(0, 20, true);
+            if(enableAudio)
+                urlsToCache = urlsToCache.concat(testContent.getAudioUrlsForTime(0, 20, true));
+
+            cacheMediaIfRequired(urlsToCache).then(() => {
+                // calls onSourceOpen() when MSE is ready
+                initializeMSE();
+            }).catch((error) => {
+                logMsg(error);
+                cleanup();
+            });
+
         </script>
     </body>
 </html>

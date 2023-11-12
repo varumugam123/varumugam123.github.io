@@ -3,6 +3,7 @@ var gCachedData = {};
 
 function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
     this.appendComplete = onAppendComplete;
+
     this.endedCb = function () {
         if (this.sourceBuffer !== undefined && this.sourceBuffer)
             this.sourceBuffer.onupdateend = undefined;
@@ -10,27 +11,36 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
             endedCb();
     }
 
-    this.onUpdateEnd = function (e) {
-        if ((this.sourceBuffer && this.sourceBuffer.updating) || this.urls.length == 0 || this.ended)
+    this.fetchAndAppendNextFragment = function () {
+        if (!this.sourceBuffer || (this.sourceBuffer && this.sourceBuffer.updating) || this.urls.length == 0 || this.ended)
             return
-
-        // This is because first time onUpdateEnd is called by Feeder itself to kick start fetchAndAppend()
-        if (this.fetchindex > 0) {
-            this.bufferCount++;
-            if (this.appendComplete !== undefined && this.appendComplete != null)
-                this.appendComplete(isVideo, (this.fetchindex / this.urls.length) * 100)
-        }
 
         if (this.fetchindex == this.urls.length) {
             logMsg("All " + (isVideo ? "video" : "audio") + " buffers are processed");
+            this.sourceBuffer.onupdateend = null;
             this.ended = true
-            this.xhr = undefined
             this.endedCb()
         } else {
-            var url = this.urls[this.fetchindex];
-            this.fetchAndAppend(url)
-            this.fetchindex++
+            this.fetchAndAppend(this.urls[this.fetchindex])
         }
+    }
+
+    this.onUpdateEnd = function (e) {
+        this.fetchindex++;
+
+        // If we need to report only the data buffer append completion
+        if (false) {
+            const numberOfInitSegmentsPushedSoFar = this.initSegmentPositions.filter((value) => { return value < this.fetchindex; }).length;
+            this.bufferCount = this.fetchindex - numberOfInitSegmentsPushedSoFar;
+        } else {
+            this.bufferCount++;
+
+        }
+
+        if (this.bufferCount > 0 && this.appendComplete !== undefined && this.appendComplete)
+            this.appendComplete(isVideo, (this.bufferCount / this.urls.length) * 100)
+
+        this.fetchAndAppendNextFragment();
     }
 
     this.appendToBuffer = function (videoChunk, url) {
@@ -72,6 +82,11 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
     }
 
     this.fetchAndAppend = function (url) {
+        if (url.substr(0, 5) == "init_") {
+            this.initSegmentPositions.push(this.fetchindex);
+            url = url.substr(5);
+        }
+
         this.fetch(url, (xhr, url) => {
             if (xhr.status != 200) {
                 console.error('Load failed. Unexpected status code ' + xhr.status + ' for ' + url)
@@ -84,16 +99,17 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
         })
     }
 
-    this.ended = false
-    this.fetchindex = 0
     this.xhr = undefined
     this.urls = urls
-
+    this.ended = false
+    this.fetchindex = 0
     this.bufferCount = 0
+    this.initSegmentPositions = [];
+
     this.sourceBuffer = sourceBuffer
     this.sourceBuffer.onupdateend = (e) => { this.onUpdateEnd() }
 
-    scheduleTask(() => { this.onUpdateEnd(); }, 10);
+    scheduleTask(() => { this.fetchAndAppendNextFragment(); }, 10);
 }
 
 // Utility functions

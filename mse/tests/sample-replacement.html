@@ -279,6 +279,18 @@
                     logMsg((isVideo ? "Video" : "Audio") + ", Reenqueue:" + feeder.reenqueue + ", ReenqueueAt:" + feeder.scheduledReenqueueAt + ", RemoveDataOnReenqueue:" + feeder.removeFragment);
                 })
             }
+
+            let urlsToCache = testContent.getVideoUrlsForTime(0, 20, true);
+            if (enableAudio)
+                urlsToCache = urlsToCache.concat(testContent.getAudioUrlsForTime(0, 20, true));
+
+            cacheMediaIfRequired(urlsToCache).then(() => {
+                // calls onSourceOpen() when MSE is ready
+                initializeMSE();
+            }).catch((error) => {
+                logMsg(error);
+                cleanup();
+            });
         </script>
     </body>
 </html>
