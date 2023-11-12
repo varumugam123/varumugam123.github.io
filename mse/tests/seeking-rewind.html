@@ -66,6 +66,7 @@
 
         <script src="../lib/logging.js"></script>
         <script src="../lib/common.js"></script>
+        <script src="../lib/red_bull.js"></script>
         <script src="../lib/feeder.js"></script>
 
         <script type="text/javascript">
@@ -73,11 +74,13 @@
                 throw 'No Media Source API available'
             }
 
+            const testContent = new RedBullContent();
+
             var sentTestStatus = false;
             var testPassed = false;
             var shouldSeekBeforeBuffering = checkProp('seekBeforeBuffering');
             var seekCloseToStartOfSegment = checkProp('seekCloseToStartOfSegment');
-            var segmentDuration = 4;
+            var segmentDuration = testContent.segmentDuration;
 
             function cleanup() {
                 performCommonCleanup();
@@ -98,15 +101,10 @@
             function onSourceOpen() {
                 ms.duration = nextDivisibleNumber(16, segmentDuration)
 
-                let initUrl = 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/video/720_2400000/dash/init.mp4'
-                let segmentUrl = 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/video/720_2400000/dash/segment_$Number$.m4s'
-                let urls = urlsThroughNumber(segmentUrl, bufferIndexFromTime(ms.duration - segmentDuration, 4, 0), (ms.duration / segmentDuration) - 1)
-                urls.unshift(initUrl)
+                cacheMediaIfRequired(testContent.getVideoUrlsForTime(0, ms.duration, true)).then(() => {
+                    var videoBuffer = ms.addSourceBuffer(testContent.videoCodec);
 
-                cacheMediaIfRequired(urls).then(() => {
-                    var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.4d401f"');
-
-                    feeders.video = new Feeder(videoBuffer, urls, () => {
+                    feeders.video = new Feeder(videoBuffer, testContent.getVideoUrlsForTime(ms.duration - segmentDuration, ms.duration, true), () => {
                         if(video.buffered.length > 0) {
                             logMsg("Performing initial forward seek to " + (video.buffered.start(0) + 0.5) + " seconds @ " + video.currentTime);
 
@@ -118,11 +116,9 @@
                             }).then(() => {
                                 logMsg(`Would be seeking to ${seekPoint} seconds @ ${video.currentTime}`);
 
-                                let feedDataForSeekPoint = (seekPoint, handleDataFeedComplete = null) => {
+                                let feedDataForSeekPoint = (seekPoint) => {
                                     logMsg("Feeding data for seek point " + seekPoint + " seconds @ " + video.currentTime)
-                                    let seekPointIndex = bufferIndexFromTime(seekPoint, segmentDuration, 0);
-                                    let bufferedTimePointIndex = bufferIndexFromTime(video.buffered.start(0), segmentDuration, 0);
-                                    let urlsToLoad = urlsThroughNumber(segmentUrl, seekPointIndex, bufferedTimePointIndex - 1);
+                                    let urlsToLoad = testContent.getVideoUrlsForTime(seekPoint, video.buffered.start(0) - 0.5);
                                     feeders.video = new Feeder(videoBuffer, urlsToLoad, null, null);
                                 }
 

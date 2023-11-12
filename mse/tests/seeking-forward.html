@@ -66,6 +66,7 @@
 
         <script src="../lib/logging.js"></script>
         <script src="../lib/common.js"></script>
+        <script src="../lib/red_bull.js"></script>
         <script src="../lib/feeder.js"></script>
 
         <script type="text/javascript">
@@ -73,11 +74,13 @@
                 throw 'No Media Source API available'
             }
 
+            const testContent = new RedBullContent();
+
             var sentTestStatus = false;
             var testPassed = false;
             var shouldSeekBeforeBuffering = checkProp('seekBeforeBuffering');
             var seekCloseToStartOfSegment = checkProp('seekCloseToStartOfSegment');
-            var segmentDuration = 4;
+            var segmentDuration = testContent.segmentDuration;
 
             function cleanup() {
                 performCommonCleanup();
@@ -98,57 +101,67 @@
             function onSourceOpen() {
                 ms.duration = nextDivisibleNumber(16, segmentDuration)
 
-                let initUrl = 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/video/720_2400000/dash/init.mp4'
-                let segmentUrl = 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/video/720_2400000/dash/segment_$Number$.m4s'
-                let urls = urlsThroughNumber(segmentUrl, 0, (ms.duration / segmentDuration) - 1)
-                urls.unshift(initUrl)
-
+                // Optionally cache segments from 0-4 seconds
+                let urls = testContent.getVideoUrlsForTime(0, testContent.segmentDuration-0.1, true)
                 cacheMediaIfRequired(urls).then(() => {
-                    var videoBuffer = ms.addSourceBuffer('video/mp4; codecs="avc1.4d401f"');
+                    var videoBuffer = ms.addSourceBuffer(testContent.videoCodec);
 
                     feeders.video = new Feeder(videoBuffer, urls, null, () => {
                         feeders.video.appendComplete = null;
+
+                        // For this test, would be seeking to 3/4 of the video (+- 1/8 of segment duration)
+                        let seekPoint = nextDivisibleNumber((video.duration - (video.duration / 4)), segmentDuration) + ((segmentDuration / 8) * (seekCloseToStartOfSegment ? 1 : -1));
                         waitForEvent(video, 'playing', 10000).then(() => {
-                            let seekPoint = nextDivisibleNumber((video.duration - (video.duration / 4)), segmentDuration) + ((segmentDuration / 8) * (seekCloseToStartOfSegment ? 1 : -1));
+                            return waitForTime(1000);
+                        }).then(() => {
                             logMsg(`Would be seeking to ${seekPoint} seconds @ ${video.currentTime}`);
 
-                            waitForCondition(() => {
-                                if(shouldSeekBeforeBuffering) {
-                                    logMsg("Seeking before buffering @ " + video.currentTime)
-                                    return true;
-                                }
+                            let feedDataForSeekPoint = (seekPoint) => {
+                                logMsg("Feeding data for seek point " + seekPoint + " seconds @ " + video.currentTime)
+                                let urlsToLoad = testContent.getVideoUrlsForTime(seekPoint, video.duration);
+                                feeders.video = new Feeder(videoBuffer, urlsToLoad, null, null);
+                            }
 
-                                let bufferLevelToStartSeeking = Math.floor(Math.min(video.duration, (seekPoint + segmentDuration)));
-                                logMsg("Seeking after buffering, waiting for data for position " + bufferLevelToStartSeeking + " seconds @ " + video.currentTime)
-                                return (video.buffered.length > 0 && video.buffered.end(0) >= bufferLevelToStartSeeking);
-                            }, 30000).then(() => {
-                                logMsg("Seeking to " + seekPoint + " seconds @ " + video.currentTime);
-                                let seekedPromise = waitForEvent(video, 'seeked', 5000);
+                            if(shouldSeekBeforeBuffering) {
+                                logMsg("Seeking before buffering @ " + video.currentTime)
+                                scheduleTask(() => { feedDataForSeekPoint(seekPoint); }, 1500)
+                            } else {
+                                feedDataForSeekPoint(seekPoint);
+                                return waitForCondition(() => {
+                                    let bufferLevelToStartSeeking = Math.floor(Math.min(video.duration, (seekPoint + segmentDuration)));
+                                    let highestBufferedStart = video.buffered.length > 0 ? video.buffered.start(video.buffered.length - 1) : 0;
+                                    let highestBufferedEnd = video.buffered.length > 0 ? video.buffered.end(video.buffered.length - 1) : 0;
+                                    logMsg("Seeking after buffering, waiting for data for position " + bufferLevelToStartSeeking + " seconds @ " + video.currentTime)
+                                    return (video.buffered.length > 0 && highestBufferedStart <= seekPoint && highestBufferedEnd >= bufferLevelToStartSeeking);
+                                }, 30000);
+                            }
+                        }).then(() => {
+                            logMsg("Seeking to " + seekPoint + " seconds @ " + video.currentTime);
+                            let seekedPromise = waitForEvent(video, 'seeked', 5000);
 
-                                let timeMonitorPromise = waitForEvent(video, 'seeking', 3000).then(() => {
-                                    let interval = 50; //milliseconds
-                                    let duration = 10 * 1000 //milliseconds
-                                    let count = duration / interval;
-                                    return monitorTimePolling(seekPoint, interval, count,
-                                        () => { return video.seeking ? 0 : (interval / 1000); },
-                                        () => { return video.currentTime >= seekPoint + 1; }
-                                    );
-                                });
-
-                                video.currentTime = seekPoint;
-
-                                return Promise.all([seekedPromise, timeMonitorPromise]);
-                            }).then(() => {
-                                logMsg("Seeking completed, @ " + video.currentTime);
-                                logMsg("Waiting for playback to reach the end (" + Math.floor(video.duration) + ") or seekPoint + segmentDuration + 1 seconds (" + (seekPoint + segmentDuration + 1) + ") (whichever is earlier) @ " + video.currentTime)
-                                return waitForCondition(() => ((video.duration - video.currentTime) <= 0.5) || ((video.currentTime - seekPoint) >= (segmentDuration + 1)), 10000);
-                            }).then(() => {
-                                testPassed = true;
-                            }).catch((e) => {
-                                logMsg("Criteria failed, " + e);
-                            }).finally(() => {
-                                cleanup();
+                            let timeMonitorPromise = waitForEvent(video, 'seeking', 3000).then(() => {
+                                let interval = 50; //milliseconds
+                                let duration = 10 * 1000 //milliseconds
+                                let count = duration / interval;
+                                return monitorTimePolling(seekPoint, interval, count,
+                                    () => { return video.seeking ? 0 : (interval / 1000); },
+                                    () => { return video.currentTime >= seekPoint + 1; }
+                                );
                             });
+
+                            video.currentTime = seekPoint;
+
+                            return Promise.all([seekedPromise, timeMonitorPromise]);
+                        }).then(() => {
+                            logMsg("Seeking completed, @ " + video.currentTime);
+                            logMsg("Waiting for playback to reach the end (" + Math.floor(video.duration) + ") or seekPoint + segmentDuration + 1 seconds (" + (seekPoint + segmentDuration + 1) + ") (whichever is earlier) @ " + video.currentTime)
+                            return waitForCondition(() => ((video.duration - video.currentTime) <= 0.5) || ((video.currentTime - seekPoint) >= (segmentDuration + 1)), 10000);
+                        }).then(() => {
+                            testPassed = true;
+                        }).catch((e) => {
+                            logMsg("Criteria failed, " + e);
+                        }).finally(() => {
+                            cleanup();
                         });
                     }, true);
                 });
