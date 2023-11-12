@@ -57,6 +57,8 @@ function initApp(mediaElement = gMediaElement) {
     }
 
     mediaElement.installEventHandlers();
+    mediaElement.muted = false;
+    mediaElement.volume = 1;
 }
 
 function initializeMSE(mediaElement = gMediaElement) {
