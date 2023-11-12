@@ -57,8 +57,10 @@ function initApp(mediaElement = gMediaElement) {
     }
 
     mediaElement.installEventHandlers();
-    mediaElement.muted = false;
+
+    mediaElement.autoplay = true;
     mediaElement.volume = 1;
+    mediaElement.muted = navigator.userAgent.includes("Chrome");
 }
 
 function initializeMSE(mediaElement = gMediaElement) {

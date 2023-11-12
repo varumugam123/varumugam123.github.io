@@ -99,6 +99,13 @@ function Feeder(sourceBuffer, urls, endedCb, onAppendComplete, isVideo) {
         })
     }
 
+    this.abort = function () {
+        if (this.xhr !== undefined && this.xhr) {
+            this.xhr.abort()
+            this.xhr = null
+        }
+    }
+
     this.xhr = undefined
     this.urls = urls
     this.ended = false
@@ -160,7 +167,11 @@ function allBuffersMeetCondition(predicate) {
 }
 
 function performFeederCleanup() {
-    forAllSourceBuffers((buffer) => { buffer.abort(); });
+    forAllFeeders((feeder, isVideo) => {
+        feeder.abort();
+        if (feeder.sourceBuffer)
+            feeder.sourceBuffer.abort();
+    });
     feeders = { video: null, audio: null }
 }
 
